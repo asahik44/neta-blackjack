@@ -29,6 +29,13 @@ function fmt(v: number) { return v >= 1 ? Math.round(v).toLocaleString() : v < 0
 
 export default function Game({ themeKey, numPlayers, onBack }: GameProps) {
   const t = THEMES[themeKey];
+
+  // ★ 音声再生関数
+  const playSound = (type: 'select' | 'win' | 'lose' | 'perfect') => {
+    const audio = new Audio(`/sounds/${type}.mp3`);
+    audio.volume = 0.5;
+    audio.play().catch(err => console.log("音声の再生がブロックされました", err));
+  };
   
   // 画面サイズ（紙吹雪用）
   const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
@@ -84,10 +91,13 @@ export default function Game({ themeKey, numPlayers, onBack }: GameProps) {
     }
   };
 
+  // ★ pickCard の重複を修正
   const pickCard = (card: Card) => {
     if (picking) return;
     setPicking(true);
     setRevealedCardName(card.name);
+
+    playSound('select'); // カード選択音を鳴らす！
 
     setTimeout(() => {
       setField(prev => prev.filter(c => c.name !== card.name));
@@ -105,6 +115,7 @@ export default function Game({ themeKey, numPlayers, onBack }: GameProps) {
 
     if (newTotal > t.target) {
       setSoloResult('bust');
+      playSound('lose'); // バースト（敗北）音を鳴らす！
       setTimeout(() => setShowModal(true), 500);
     }
     setPicking(false);
@@ -140,6 +151,7 @@ export default function Game({ themeKey, numPlayers, onBack }: GameProps) {
     setCurrentPlayerIdx(next);
   };
 
+  // ★ doStand の重複を修正
   const doStand = () => {
     if (picking) return;
     if (numPlayers === 1) {
@@ -177,6 +189,7 @@ export default function Game({ themeKey, numPlayers, onBack }: GameProps) {
           res = pDiff === 0 ? 'perfect' : 'win';
         }
         setSoloResult(res);
+        playSound(res); // win, lose, perfect のどれかの音が鳴る！
         setShowModal(true);
       }, 1200);
 
@@ -195,9 +208,20 @@ export default function Game({ themeKey, numPlayers, onBack }: GameProps) {
       return a.diff - b.diff;
     });
     
-    setAllMultiBust(ranked.every(r => r.busted));
+    const isAllBust = ranked.every(r => r.busted);
+    setAllMultiBust(isAllBust);
     setIsMultiDraw(!ranked[0].busted && ranked.length > 1 && !ranked[1].busted && ranked[0].diff === ranked[1].diff);
     setPlayers(ranked); 
+
+    // マルチプレイ用の音判定
+    if (isAllBust) {
+      playSound('lose');
+    } else if (ranked[0].diff === 0 && !ranked[0].busted) {
+      playSound('perfect'); // 1位がピッタリ賞ならパーフェクト音！
+    } else {
+      playSound('win');
+    }
+
     setTimeout(() => setShowModal(true), 500);
   };
 
@@ -208,11 +232,11 @@ export default function Game({ themeKey, numPlayers, onBack }: GameProps) {
     ? (!players[currentPlayerIdx]?.busted && players[currentPlayerIdx]?.hand.length > 0)
     : (!soloResult && hand.length > 0);
 
-  // ★ 演出用：勝利状態かどうかを判定
+  // 演出用：勝利状態かどうかを判定
   const isPerfect = !isMulti && soloResult === 'perfect';
   const isWin = (!isMulti && soloResult === 'win') || (isMulti && !allMultiBust && !isMultiDraw);
 
-  // ★ 演出用：モーダルに付与する特殊クラス
+  // 演出用：モーダルに付与する特殊クラス
   let modalAnimationClass = "";
   if (isPerfect) modalAnimationClass = "perfect-modal";
   else if (isWin) modalAnimationClass = "win-modal";
@@ -220,14 +244,14 @@ export default function Game({ themeKey, numPlayers, onBack }: GameProps) {
   return (
     <div id="game">
       
-      {/* ★ 紙吹雪レイヤー（勝利時のみ表示、最前面） */}
+      {/* 紙吹雪レイヤー（勝利時のみ表示、最前面） */}
       {showModal && (isPerfect || isWin) && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 101, pointerEvents: 'none' }}>
           <Confetti 
             width={windowSize.width} 
             height={windowSize.height} 
-            numberOfPieces={isPerfect ? 800 : 250} // パーフェクトは爆量！
-            recycle={isPerfect} // パーフェクトはずっと降り続ける、Winは1回で終了
+            numberOfPieces={isPerfect ? 800 : 250} 
+            recycle={isPerfect} 
             gravity={isPerfect ? 0.3 : 0.15}
           />
         </div>
@@ -354,7 +378,6 @@ export default function Game({ themeKey, numPlayers, onBack }: GameProps) {
 
       {/* リザルトモーダル */}
       <div className={`modal-bg ${showModal ? 'active' : ''}`}>
-        {/* ★ 動的にアニメーションクラスを付与 */}
         <div className={`modal ${modalAnimationClass}`} style={{ borderColor: isMulti ? (allMultiBust ? '#ff4444' : players[0]?.color) : (soloResult === 'bust' ? '#ff4444' : t.color) }}>
           
           {!isMulti && (
@@ -398,7 +421,6 @@ export default function Game({ themeKey, numPlayers, onBack }: GameProps) {
           )}
 
           <div className="modal-btns">
-            {/* ★ ここだけインラインスタイルで背景を固定しないように className で制御（アニメーション優先のため） */}
             <button className="retry-btn" style={!isPerfect ? { background: t.color } : { background: '#222', border: '1px solid #fff' }} onClick={() => setRound(r => r + 1)}>もう1回</button>
             <button className="change-btn" onClick={onBack}>テーマ変更</button>
           </div>
