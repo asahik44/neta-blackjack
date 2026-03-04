@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { THEMES, ThemeKey, Card } from "@/data/themes";
-import Confetti from "react-confetti"; // ★ 紙吹雪ライブラリを読み込み
+import Confetti from "react-confetti"; 
 
 interface GameProps {
   themeKey: ThemeKey;
@@ -30,16 +30,12 @@ function fmt(v: number) { return v >= 1 ? Math.round(v).toLocaleString() : v < 0
 export default function Game({ themeKey, numPlayers, onBack }: GameProps) {
   const t = THEMES[themeKey];
 
-  // ★ 音声再生関数
   const playSound = (type: 'select' | 'win' | 'lose' | 'perfect') => {
     const audio = new Audio(`/sounds/${type}.mp3`);
     audio.volume = 0.5;
-    audio.play()
-      .then(() => console.log("🎵 再生成功！")) // ← 追加
-      .catch(err => console.warn("🔇 再生がブロックされました:", err)); // ← 追加
-      };
+    audio.play().catch(err => console.log("音声の再生がブロックされました", err));
+  };
   
-  // 画面サイズ（紙吹雪用）
   const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
 
   const [field, setField] = useState<Card[]>([]);
@@ -60,7 +56,6 @@ export default function Game({ themeKey, numPlayers, onBack }: GameProps) {
   const [isMultiDraw, setIsMultiDraw] = useState(false);
   const [allMultiBust, setAllMultiBust] = useState(false);
 
-  // 画面サイズを取得（画面リサイズにも対応）
   useEffect(() => {
     setWindowSize({ width: window.innerWidth, height: window.innerHeight });
     const handleResize = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
@@ -93,13 +88,12 @@ export default function Game({ themeKey, numPlayers, onBack }: GameProps) {
     }
   };
 
-  // ★ pickCard の重複を修正
   const pickCard = (card: Card) => {
     if (picking) return;
     setPicking(true);
     setRevealedCardName(card.name);
 
-    playSound('select'); // カード選択音を鳴らす！
+    playSound('select');
 
     setTimeout(() => {
       setField(prev => prev.filter(c => c.name !== card.name));
@@ -117,7 +111,7 @@ export default function Game({ themeKey, numPlayers, onBack }: GameProps) {
 
     if (newTotal > t.target) {
       setSoloResult('bust');
-      playSound('lose'); // バースト（敗北）音を鳴らす！
+      playSound('lose');
       setTimeout(() => setShowModal(true), 500);
     }
     setPicking(false);
@@ -153,7 +147,6 @@ export default function Game({ themeKey, numPlayers, onBack }: GameProps) {
     setCurrentPlayerIdx(next);
   };
 
-  // ★ doStand の重複を修正
   const doStand = () => {
     if (picking) return;
     if (numPlayers === 1) {
@@ -191,7 +184,7 @@ export default function Game({ themeKey, numPlayers, onBack }: GameProps) {
           res = pDiff === 0 ? 'perfect' : 'win';
         }
         setSoloResult(res);
-        playSound(res); // win, lose, perfect のどれかの音が鳴る！
+        playSound(res);
         setShowModal(true);
       }, 1200);
 
@@ -215,11 +208,10 @@ export default function Game({ themeKey, numPlayers, onBack }: GameProps) {
     setIsMultiDraw(!ranked[0].busted && ranked.length > 1 && !ranked[1].busted && ranked[0].diff === ranked[1].diff);
     setPlayers(ranked); 
 
-    // マルチプレイ用の音判定
     if (isAllBust) {
       playSound('lose');
     } else if (ranked[0].diff === 0 && !ranked[0].busted) {
-      playSound('perfect'); // 1位がピッタリ賞ならパーフェクト音！
+      playSound('perfect');
     } else {
       playSound('win');
     }
@@ -234,11 +226,9 @@ export default function Game({ themeKey, numPlayers, onBack }: GameProps) {
     ? (!players[currentPlayerIdx]?.busted && players[currentPlayerIdx]?.hand.length > 0)
     : (!soloResult && hand.length > 0);
 
-  // 演出用：勝利状態かどうかを判定
   const isPerfect = !isMulti && soloResult === 'perfect';
   const isWin = (!isMulti && soloResult === 'win') || (isMulti && !allMultiBust && !isMultiDraw);
 
-  // 演出用：モーダルに付与する特殊クラス
   let modalAnimationClass = "";
   if (isPerfect) modalAnimationClass = "perfect-modal";
   else if (isWin) modalAnimationClass = "win-modal";
@@ -246,7 +236,6 @@ export default function Game({ themeKey, numPlayers, onBack }: GameProps) {
   return (
     <div id="game">
       
-      {/* 紙吹雪レイヤー（勝利時のみ表示、最前面） */}
       {showModal && (isPerfect || isWin) && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 101, pointerEvents: 'none' }}>
           <Confetti 
@@ -259,54 +248,66 @@ export default function Game({ themeKey, numPlayers, onBack }: GameProps) {
         </div>
       )}
 
-      <div className="top-bar">
-        <button className="back-btn" onClick={onBack}>← タイトルへ戻る</button>
-        {!isMulti && <div className="round-info mono">ROUND {round}｜{score}pt</div>}
-      </div>
-
-      {isMulti && !showModal && (
-        <div className="turn-indicator" style={{ color: players[currentPlayerIdx]?.color, border: `2px solid ${players[currentPlayerIdx]?.color}66` }}>
-          {players[currentPlayerIdx]?.emoji} {players[currentPlayerIdx]?.name} のターン
+      {/* ★ ここから「追従する（固定）エリア」 */}
+      <div className="sticky-header">
+        <div className="top-bar">
+          <button className="back-btn" onClick={onBack}>← タイトルへ戻る</button>
+          {!isMulti && <div className="round-info mono">ROUND {round}｜{score}pt</div>}
         </div>
-      )}
 
-      {isMulti ? (
-        <div className="players-area">
-          {players.map((p, i) => {
-            const ratio = t.target > 0 ? Math.min(p.total / t.target, 1) * 100 : 0;
-            const gColor = p.busted ? '#ff4444' : p.color;
-            const activeClass = i === currentPlayerIdx && !p.stopped && !p.busted ? 'active' : '';
-            const stoppedClass = p.stopped || p.busted ? 'stopped' : '';
-            return (
-              <div key={i} className={`player-panel ${activeClass} ${stoppedClass}`} style={{ borderColor: activeClass ? p.color : '' }}>
-                <div className="p-name" style={{ color: p.color }}>{p.emoji} {p.name}</div>
-                <div className="p-total mono" style={{ color: p.busted ? '#ff4444' : '#333' }}>
-                  {fmt(p.total)}<span className="p-unit">{t.unit}</span>
+        {isMulti && !showModal && (
+          <div className="turn-indicator" style={{ color: players[currentPlayerIdx]?.color, border: `2px solid ${players[currentPlayerIdx]?.color}66` }}>
+            {players[currentPlayerIdx]?.emoji} {players[currentPlayerIdx]?.name} のターン
+          </div>
+        )}
+
+        {isMulti ? (
+          <div className="players-area">
+            {players.map((p, i) => {
+              const ratio = t.target > 0 ? Math.min(p.total / t.target, 1) * 100 : 0;
+              const gColor = p.busted ? '#ff4444' : p.color;
+              const activeClass = i === currentPlayerIdx && !p.stopped && !p.busted ? 'active' : '';
+              const stoppedClass = p.stopped || p.busted ? 'stopped' : '';
+              return (
+                <div key={i} className={`player-panel ${activeClass} ${stoppedClass}`} style={{ borderColor: activeClass ? p.color : '' }}>
+                  <div className="p-name" style={{ color: p.color }}>{p.emoji} {p.name}</div>
+                  <div className="p-total mono" style={{ color: p.busted ? '#ff4444' : '#333' }}>
+                    {fmt(p.total)}<span className="p-unit">{t.unit}</span>
+                  </div>
+                  {/* ★ マルチプレイの「あとXXX」も色と文字を指定 */}
+                  <div className="p-remain" style={{ color: p.busted ? '#ff4444' : '#e67e22' }}>
+                    {p.busted ? '💥 バースト' : p.stopped ? '✋ ストップ' : p.total > 0 ? `あと${Math.max(0, t.target - p.total).toLocaleString()}` : '─'}
+                  </div>
+                  <div className="p-gauge"><div className="p-gauge-fill" style={{ width: `${ratio}%`, background: gColor }}></div></div>
+                  {(p.stopped || p.busted) && <div className="p-status" style={{ color: gColor }}>{p.busted ? '💥 バースト' : '✋ ストップ'}</div>}
                 </div>
-                <div className="p-remain">{p.busted ? 'BUST!' : p.stopped ? 'STOP' : p.total > 0 ? `あと${Math.max(0, t.target - p.total).toLocaleString()}` : '─'}</div>
-                <div className="p-gauge"><div className="p-gauge-fill" style={{ width: `${ratio}%`, background: gColor }}></div></div>
-                {(p.stopped || p.busted) && <div className="p-status" style={{ color: gColor }}>{p.busted ? '💥 バースト' : '✋ ストップ'}</div>}
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="score-panel">
-          <div className="score-header">
-            <div className="left"><span className="emoji">{t.emoji}</span><span className="name">{t.name}</span></div>
-            <div className="target mono" style={{ color: t.color }}>TARGET {t.target.toLocaleString()}{t.unit}</div>
+              );
+            })}
           </div>
-          <div className="gauge">
-            <div className="gauge-fill" style={{ width: `${isSoloBust ? 100 : soloRatio}%`, background: isSoloBust ? '#ff4444' : t.color }}></div>
-            <div className="gauge-text mono">{fmt(total)} / {t.target.toLocaleString()}</div>
+        ) : (
+          <div className="score-panel">
+            <div className="score-header">
+              <div className="left"><span className="emoji">{t.emoji}</span><span className="name">{t.name}</span></div>
+              <div className="target mono" style={{ color: t.color }}>TARGET {t.target.toLocaleString()}{t.unit}</div>
+            </div>
+            <div className="gauge">
+              <div className="gauge-fill" style={{ width: `${isSoloBust ? 100 : soloRatio}%`, background: isSoloBust ? '#ff4444' : t.color }}></div>
+              <div className="gauge-text mono">{fmt(total)} / {t.target.toLocaleString()}</div>
+            </div>
+            <div className="total-display">
+              <span className="total-num mono" style={{ color: isSoloBust ? '#ff4444' : '#222' }}>{fmt(total)}</span>
+              <span className="total-unit">{t.unit}</span>
+              {/* ★ 1人プレイの「あとXXX」も色を指定 */}
+              {!soloResult && total > 0 && (
+                <span className="total-remain" style={{ color: t.target - total < 0 ? '#ff4444' : '#e67e22' }}>
+                  (あと{Math.max(0, t.target - total).toLocaleString()})
+                </span>
+              )}
+            </div>
           </div>
-          <div className="total-display">
-            <span className="total-num mono" style={{ color: isSoloBust ? '#ff4444' : '#222' }}>{fmt(total)}</span>
-            <span className="total-unit">{t.unit}</span>
-            {!soloResult && total > 0 && <span className="total-remain" style={{ color: t.target - total < 0 ? '#ff4444' : '#888' }}>(あと{Math.max(0, t.target - total).toLocaleString()})</span>}
-          </div>
-        </div>
-      )}
+        )}
+      </div>
+      {/* ★ 追従エリアここまで */}
 
       {!isMulti && hand.length > 0 && (
         <div>

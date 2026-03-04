@@ -18,6 +18,7 @@ button {
   border: none;
   outline: none;
   -webkit-appearance: none;
+  appearance: none;
 }
 
 /* タイトル周り */
@@ -73,7 +74,7 @@ button {
 .player-panel .p-name { font-size: 12px; font-weight: 800; margin-bottom: 4px; display: flex; align-items: center; gap: 4px; }
 .player-panel .p-total { font-size: 22px; font-weight: 800; line-height: 1; color: #333; }
 .player-panel .p-unit { font-size: 11px; font-weight: 600; color: #888; margin-left: 2px; }
-.player-panel .p-remain { font-size: 10px; color: #777; margin-top: 2px; font-weight: 600; }
+.player-panel .p-remain { font-size: 12px; color: #e67e22; margin-top: 4px; font-weight: 800; }
 .player-panel .p-gauge { height: 6px; background: #e2e8f0; border-radius: 3px; margin-top: 6px; overflow: hidden; }
 .player-panel .p-gauge-fill { height: 100%; border-radius: 3px; transition: width 0.5s; }
 .player-panel .p-status { font-size: 10px; margin-top: 4px; font-weight: 800; }
@@ -91,7 +92,7 @@ button {
 .total-display { display: flex; align-items: baseline; gap: 2px; }
 .total-num { font-size: 36px; font-weight: 900; line-height: 1; color: #222; }
 .total-unit { color: #777; font-size: 13px; font-weight: 700; }
-.total-remain { color: #888; font-size: 12px; margin-left: 8px; font-weight: 700; }
+.total-remain { color: #e67e22; font-size: 16px; margin-left: 10px; font-weight: 900; }
 
 /* フィールドとカード */
 .field { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 8px; }
@@ -191,4 +192,22 @@ button {
 }
 .win-modal .result-title {
   animation: peka-text 0.6s infinite alternate !important;
+}
+
+/* ========== スコアパネルの追従（固定）用 ========== */
+.sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(244, 246, 249, 0.95);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  margin: -16px -14px 16px -14px;
+  padding: 16px 14px 12px 14px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+}
+.sticky-header .score-panel, 
+.sticky-header .players-area {
+  margin-bottom: 0;
 }

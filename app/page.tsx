@@ -81,6 +81,12 @@ export default function Home() {
             <span className="num">④</span> 目標を超えたらバースト💥 ディーラーより近ければ勝ち！
           </div>
         </div>
+
+        {/* ★ ここにOtoLogicのクレジットを追加しました */}
+        <div style={{ marginTop: '24px', fontSize: '11px', color: '#888', textAlign: 'center' }}>
+          効果音：<a href="https://otologic.jp" target="_blank" rel="noopener noreferrer" style={{ color: '#888', textDecoration: 'underline' }}>OtoLogic</a>
+        </div>
+
       </div>
     </main>
   );
