@@ -1,7 +1,7 @@
 // data/chains.ts
 import { Theme } from "./types";
 
-export const chainsTheme: Theme = {
+export const animeTheme: Theme = {
 name: "アニメの放送話数",
     target: 1000,
     unit: "話",
@@ -110,4 +110,4 @@ name: "アニメの放送話数",
       { name: "ダンジョン飯", value: 24, hint: "モンスター料理" },
       { name: "メイドインアビス", value: 25, hint: "奈落の底へ" },
     ],
-  },
+  };

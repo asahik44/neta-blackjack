@@ -1,7 +1,7 @@
 // data/chains.ts
 import { Theme } from "./types";
 
-export const chainsTheme: Theme = {
+export const mangaTheme: Theme = {
     name: "マンガの巻数",
     target: 200,
     unit: "巻",
@@ -110,4 +110,4 @@ export const chainsTheme: Theme = {
       { name: "ピンポン", value: 5, hint: "卓球漫画" },
       { name: "AKIRA", value: 6, hint: "大友克洋" },
     ],
-  },
+  };

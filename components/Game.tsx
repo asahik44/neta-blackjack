@@ -34,8 +34,10 @@ export default function Game({ themeKey, numPlayers, onBack }: GameProps) {
   const playSound = (type: 'select' | 'win' | 'lose' | 'perfect') => {
     const audio = new Audio(`/sounds/${type}.mp3`);
     audio.volume = 0.5;
-    audio.play().catch(err => console.log("音声の再生がブロックされました", err));
-  };
+    audio.play()
+      .then(() => console.log("🎵 再生成功！")) // ← 追加
+      .catch(err => console.warn("🔇 再生がブロックされました:", err)); // ← 追加
+      };
   
   // 画面サイズ（紙吹雪用）
   const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });

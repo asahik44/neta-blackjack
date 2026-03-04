@@ -1,8 +1,7 @@
 // data/chains.ts
 import { Theme } from "./types";
 
-export const chainsTheme: Theme = {
-      movies: {
+export const moviesTheme: Theme = {
     name: "映画の上映時間",
     target: 600,
     unit: "分",
@@ -111,5 +110,4 @@ export const chainsTheme: Theme = {
       { name: "セブン", value: 127, hint: "7つの大罪" },
       { name: "羊たちの沈黙", value: 118, hint: "レクター博士" },
     ],
-  },
-};
+  };

@@ -1,7 +1,7 @@
 // data/chains.ts
 import { Theme } from "./types";
 
-export const chainsTheme: Theme = {
+export const countriesTheme: Theme = {
         name: "国の人口",
     target: 10000,
     unit: "万人",
@@ -111,4 +111,4 @@ export const chainsTheme: Theme = {
       { name: "タンザニア", value: 6700, hint: "キリマンジャロ" },
       { name: "マダガスカル", value: 3000, hint: "独自の生態系" },
     ],
-  },
+  };

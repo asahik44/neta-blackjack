@@ -110,4 +110,4 @@ export const chainsTheme: Theme = {
       { name: "温野菜", value: 200, hint: "しゃぶしゃぶ" },
       { name: "ほっかほっか亭", value: 430, hint: "弁当チェーン" },
     ],
-  },
+  };
