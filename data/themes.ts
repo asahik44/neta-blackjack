@@ -8,6 +8,7 @@ import { moviesTheme } from "./movies";
 import { historyTheme } from "./history";
 import { primesTheme } from "./primes";
 import { tokumeiTheme } from "./tokumei";
+import { omocoroTheme } from "./omocoro";
 
 
 // 全てのテーマを1つにまとめる
@@ -20,6 +21,7 @@ export const THEMES: Record<ThemeKey, Theme> = {
   countries: countriesTheme,
   primes: primesTheme,
   tokumei: tokumeiTheme,
+  omocoro:omocoroTheme,
 };
 
 export type { ThemeKey, Theme, Card, GameMode };

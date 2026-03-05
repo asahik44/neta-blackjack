@@ -135,7 +135,7 @@ const pickCardRef = useRef<((card: Card) => void) | null>(null);
     playSound('select');
 
     setTimeout(() => {
-      setField(prev => prev.filter(c => c.name !== card.name));
+      setField(prev => prev.filter(c => (c.url || c.name) !== (card.url || card.name)));
       setRevealedCardName(null);
 
       if (isBattle) handleBattlePick(card);
@@ -529,8 +529,8 @@ const pickCardRef = useRef<((card: Card) => void) | null>(null);
               const revealColor = isMulti ? players[currentPlayerIdx]?.color : t.color;
               return (
                 <button
-                  key={c.name}
-                  className={`field-card ${isRevealed ? 'revealed' : ''}`}
+                  key={c.url || `${c.name}-${c.hint}`}
+                      className={`field-card ${isRevealed ? 'revealed' : ''}`}
                   // ★ CPUのターン中は人間がクリックできないようにブロック！
                   disabled={picking || battleEnded || (!isMulti && !!soloResult) || (isMulti && !isBattle && players[currentPlayerIdx]?.stopped) || (players[currentPlayerIdx]?.isCpu ?? false)}
                   onClick={() => pickCard(c)}
