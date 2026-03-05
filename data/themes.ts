@@ -21,7 +21,7 @@ export const THEMES: Record<ThemeKey, Theme> = {
   countries: countriesTheme,
   primes: primesTheme,
   tokumei: tokumeiTheme,
-  omocoro:omocoroTheme,
+  omocoro: omocoroTheme,
 };
 
 export type { ThemeKey, Theme, Card, GameMode };
