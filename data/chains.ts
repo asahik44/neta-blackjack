@@ -4,6 +4,7 @@ import { Theme } from "./types";
 export const chainsTheme: Theme = {
         name: "チェーン店の店舗数",
     target: 6000,
+    battleTarget: 10000, //対戦モード
     unit: "店",
     emoji: "🏪",
     color: "#FF6B35",

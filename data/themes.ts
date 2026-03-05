@@ -1,5 +1,5 @@
 // data/themes.ts
-import { ThemeKey, Theme, Card } from "./types";
+import { ThemeKey, Theme, Card, GameMode } from "./types";
 import { chainsTheme } from "./chains";
 import { mangaTheme } from "./manga";
 import { countriesTheme } from "./countries";
@@ -15,5 +15,4 @@ export const THEMES: Record<ThemeKey, Theme> = {
   movies: moviesTheme,
 };
 
-// page.tsx や Game.tsx がそのまま動くように、型もここから中継してあげます
-export type { ThemeKey, Theme, Card };
+export type { ThemeKey, Theme, Card, GameMode };

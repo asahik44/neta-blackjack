@@ -1,4 +1,8 @@
 // data/types.ts
+
+// ★ これを追加
+export type GameMode = "normal" | "battle";
+
 export type ThemeKey = "chains" | "manga" | "countries" | "anime" | "movies";
 
 export interface Card {
@@ -10,6 +14,7 @@ export interface Card {
 export interface Theme {
   name: string;
   target: number;
+  battleTarget: number; // ★ これを追加（バトルモードでのバースト限界値）
   unit: string;
   emoji: string;
   color: string;
