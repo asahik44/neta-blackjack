@@ -3,7 +3,8 @@ import { Theme } from "./types";
 
 export const moviesTheme: Theme = {
     name: "映画の上映時間",
-    target: 600,
+    target: 600, //シングルモード
+    battleTarget: 800, //対戦モード
     unit: "分",
     emoji: "🎬",
     color: "#F4A261",

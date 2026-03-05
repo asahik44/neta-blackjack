@@ -1,30 +1,31 @@
 "use client";
 
 import { useState } from "react";
-import { THEMES, ThemeKey } from "@/data/themes";
-import Game from "@/components/Game"; // ★さっき作った部品を読み込む
+import { THEMES, ThemeKey, GameMode } from "@/data/themes";
+import Game from "@/components/Game";
 
 export default function Home() {
   const [numPlayers, setNumPlayers] = useState<number>(1);
-  const [activeTheme, setActiveTheme] = useState<ThemeKey | null>(null); // ★現在選ばれているテーマを記憶する
+  const [gameMode, setGameMode] = useState<GameMode>("normal");
+  const [activeTheme, setActiveTheme] = useState<ThemeKey | null>(null);
 
-  // テーマを選んだら、activeThemeにセットする（画面が切り替わる）
   const handleStartGame = (key: ThemeKey) => {
     setActiveTheme(key);
   };
 
-  // activeTheme に何か入っていたら、ゲーム画面を表示する！
   if (activeTheme) {
     return (
       <Game 
         themeKey={activeTheme} 
-        numPlayers={numPlayers} 
-        onBack={() => setActiveTheme(null)} // 戻るボタンが押されたら空っぽにする
+        numPlayers={numPlayers} // ★ バトルモードでも強制的に2人にせず、選んだ人数を渡す！
+        gameMode={gameMode}
+        onBack={() => setActiveTheme(null)}
       />
     );
   }
 
-  // 選ばれていない時は、タイトル画面を表示する
+  const isBattle = gameMode === "battle";
+
   return (
     <main>
       <div id="title">
@@ -33,6 +34,44 @@ export default function Home() {
         <p className="sub">─ 知識 × 予想 × 駆け引き ─</p>
         <p className="desc">並んだカードの<span>名前だけ</span>を見て選べ！<br />数値は選んでからのお楽しみ！<br />合計を目標にピッタリ寄せろ💥</p>
 
+        <div className="section-label">GAME MODE</div>
+        <div className="mode-select">
+          <label>
+            <input 
+              type="radio" 
+              name="gmode" 
+              value="normal" 
+              checked={gameMode === "normal"}
+              onChange={() => setGameMode("normal")}
+            />
+            <span className="mode-label" style={gameMode === "normal" ? { color: '#e67e22', borderColor: '#e67e22', background: '#fff5eb' } : {}}>
+              🎯 通常モード
+            </span>
+          </label>
+          <label>
+            <input 
+              type="radio" 
+              name="gmode" 
+              value="battle" 
+              checked={gameMode === "battle"}
+              onChange={() => setGameMode("battle")}
+            />
+            <span className="mode-label" style={gameMode === "battle" ? { color: '#e63946', borderColor: '#e63946', background: '#fff0f0' } : {}}>
+              ⚔️ バトルモード
+            </span>
+          </label>
+        </div>
+
+        {isBattle && (
+          <div className="battle-desc">
+            <span className="battle-icon">💣</span>
+            共通の目標値（LIMIT）に向かって交互にカードを引く！<br />
+            限界を超えて<span className="battle-lose">バーストさせた（踏んだ）人の負け！</span><br />
+            恐怖のチキンレースを生き残れ🔥
+          </div>
+        )}
+
+        {/* ★ バトルモードでも人数を選べるように制限を解除！ */}
         <div className="section-label">PLAYERS</div>
         <div className="mode-select">
           {[1, 2, 3].map((num) => (
@@ -45,7 +84,7 @@ export default function Home() {
                 onChange={() => setNumPlayers(num)}
               />
               <span className="mode-label" style={numPlayers === num ? { color: '#e67e22', borderColor: '#e67e22', background: '#fff5eb' } : {}}>
-                {num === 1 ? '🎯 1人' : `👥 ${num}人`}
+                {num === 1 ? (isBattle ? '🤖 vs CPU' : '🎯 1人') : `👥 ${num}人`}
               </span>
             </label>
           ))}
@@ -55,6 +94,7 @@ export default function Home() {
         <div id="theme-buttons">
           {(Object.keys(THEMES) as ThemeKey[]).map((key) => {
             const t = THEMES[key];
+            const target = isBattle ? t.battleTarget : t.target;
             return (
               <button 
                 key={key} 
@@ -65,28 +105,20 @@ export default function Home() {
                 <span className="emoji">{t.emoji}</span>
                 <div>
                   <div>{t.name}</div>
-                  <div className="info">目標: {t.target.toLocaleString()}{t.unit}｜28枚から選択</div>
+                  <div className="info">
+                    {isBattle 
+                      ? `💣 ${target.toLocaleString()}${t.unit}を超えたら負け｜30枚から選択`
+                      : `目標: ${target.toLocaleString()}${t.unit}｜30枚から選択`
+                    }
+                  </div>
                 </div>
               </button>
             );
           })}
         </div>
-
-        <div className="howto">
-          <div className="label">HOW TO PLAY</div>
-          <div className="body">
-            <span className="num">①</span> 場に28枚のカードが並ぶ（名前とヒントだけ見える）<br />
-            <span className="num">②</span> カードを選ぶと数値が判明！合計に加算される<br />
-            <span className="num">③</span> 目標の数字に近づいたら「ストップ」<br />
-            <span className="num">④</span> 目標を超えたらバースト💥 ディーラーより近ければ勝ち！
-          </div>
-        </div>
-
-        {/* ★ ここにOtoLogicのクレジットを追加しました */}
         <div style={{ marginTop: '24px', fontSize: '11px', color: '#888', textAlign: 'center' }}>
           効果音：<a href="https://otologic.jp" target="_blank" rel="noopener noreferrer" style={{ color: '#888', textDecoration: 'underline' }}>OtoLogic</a>
         </div>
-
       </div>
     </main>
   );

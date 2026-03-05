@@ -4,6 +4,7 @@ import { Theme } from "./types";
 export const countriesTheme: Theme = {
         name: "国の人口",
     target: 10000,
+    battleTarget: 15000, //対戦モード
     unit: "万人",
     emoji: "🌍",
     color: "#00A878",

@@ -4,6 +4,7 @@ import { Theme } from "./types";
 export const mangaTheme: Theme = {
     name: "マンガの巻数",
     target: 200,
+    battleTarget: 300, //対戦モード
     unit: "巻",
     emoji: "📚",
     color: "#7B2FF7",
