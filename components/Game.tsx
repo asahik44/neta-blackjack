@@ -617,6 +617,26 @@ export default function Game({ themeKey, numPlayers, gameMode, onBack }: GamePro
             </>
           )}
 
+        {/* ★ Amazonアフィリエイト枠 ★ */}
+          <div className="amazon-section">
+            <div className="amazon-title">🛒 今回引いたカードをAmazonで探す</div>
+            <div className="amazon-cards">
+              {/* 自分が引いたカードから最大3枚を抽出してリンク化 */}
+              {(isMulti ? players[0]?.hand : hand).slice(0, 3).map((c, i) => (
+                <a 
+                  key={i} 
+                  /* ★ YOUR_TAG-22 の部分を自分のAmazonアソシエイトタグに変えます */
+                  href={`https://www.amazon.co.jp/s?k=${encodeURIComponent(c.name)}&tag=ash44-22`} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="amazon-link"
+                >
+                  🔍 {c.name}
+                </a>
+              ))}
+            </div>
+          </div>
+
           <div className="modal-btns">
             <button className="retry-btn" style={
               isBattle 

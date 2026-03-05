@@ -233,3 +233,70 @@ button {
 .sticky-header .players-area {
   margin-bottom: 0;
 }
+
+/* ========== 収益化・リンク用デザイン ========== */
+
+/* OFUSEボタン（トップ画面用） */
+.ofuse-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: #fff;
+  border: 1.5px solid #d4a373;
+  border-radius: 20px;
+  color: #8b5a2b;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+  box-shadow: 0 4px 12px rgba(212, 163, 115, 0.15);
+  transition: all 0.2s;
+}
+.ofuse-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(212, 163, 115, 0.25);
+  background: #fffaf5;
+}
+
+/* Amazonアフィリエイト枠（結果画面用） */
+.amazon-section {
+  margin: 16px 0;
+  padding: 12px;
+  background: #f8f9fa;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  text-align: left;
+}
+.amazon-title {
+  font-size: 11px;
+  font-weight: 800;
+  color: #555;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.amazon-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.amazon-link {
+  display: block;
+  padding: 8px 12px;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #007185; /* Amazonっぽいリンク色 */
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: all 0.2s;
+}
+.amazon-link:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}

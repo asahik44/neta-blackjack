@@ -116,8 +116,16 @@ export default function Home() {
             );
           })}
         </div>
-        <div style={{ marginTop: '24px', fontSize: '11px', color: '#888', textAlign: 'center' }}>
+<div style={{ marginTop: '24px', fontSize: '11px', color: '#888', textAlign: 'center', lineHeight: '1.6', padding: '0 16px' }}>
+          <p style={{ marginBottom: '16px', fontWeight: 'bold' }}>
+            ※カードの数値（巻数や店舗数など）はデータ作成時のものです。<br />
+            最新の情報とズレていたり、たまーに間違いがあるかもしれませんが、<br />
+            許してつかあさい
+          </p>
+          
           効果音：<a href="https://otologic.jp" target="_blank" rel="noopener noreferrer" style={{ color: '#888', textDecoration: 'underline' }}>OtoLogic</a>
+          <br /><br />
+          ※当サイトは、Amazon.co.jpを宣伝しリンクすることによってサイトが紹介料を獲得できる手段を提供することを目的に設定されたアフィリエイトプログラムである、Amazonアソシエイト・プログラムの参加者です。
         </div>
       </div>
     </main>
