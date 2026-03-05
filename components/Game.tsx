@@ -8,10 +8,11 @@ interface GameProps {
   themeKey: ThemeKey;
   numPlayers: number;
   gameMode: GameMode;
+  multiplier: number; // ★ 追加：目標値の倍率
+  fieldSize: number;  // ★ 追加：カードの枚数
   onBack: () => void;
 }
 
-const FIELD_SIZE = 30;
 // バトルでも通常でも、この色と名前を使います（最大3人）
 const PLAYER_COLORS = ["#e63946", "#2196F3", "#7CFC00"];
 const PLAYER_NAMES = ["Player 1", "Player 2", "Player 3"];
@@ -29,10 +30,10 @@ function shuffleArray<T>(array: T[]): T[] {
 }
 function fmt(v: number) { return v >= 1 ? Math.round(v).toLocaleString() : v < 0.01 ? "0" : v.toFixed(1); }
 
-export default function Game({ themeKey, numPlayers, gameMode, onBack }: GameProps) {
-  const t = THEMES[themeKey];
+export default function Game({ themeKey, numPlayers, gameMode, multiplier, fieldSize, onBack }: GameProps) {
+      const t = THEMES[themeKey];
   const isBattle = gameMode === "battle";
-  const activeTarget = isBattle ? t.battleTarget : t.target;
+  const activeTarget = Math.floor((isBattle ? t.battleTarget : t.target) * multiplier);
 
   const playSound = (type: 'select' | 'win' | 'lose' | 'perfect' | 'bust') => {
     const audio = new Audio(`/sounds/${type}.mp3`);
@@ -88,7 +89,7 @@ export default function Game({ themeKey, numPlayers, gameMode, onBack }: GamePro
     setGameReady(false);
     if (cpuTimerRef.current) { clearTimeout(cpuTimerRef.current); cpuTimerRef.current = null; }
 
-    const shuffled = shuffleArray(t.cards).slice(0, FIELD_SIZE);
+    const shuffled = shuffleArray(t.cards).slice(0, fieldSize);
     setField(shuffled);
     setPicking(false);
     setRevealedCardName(null);
@@ -250,7 +251,7 @@ const pickCardRef = useRef<((card: Card) => void) | null>(null);
     }
 
     const totalDrawnCards = nextPlayers.reduce((sum, player) => sum + player.hand.length, 0);
-    if (totalDrawnCards >= FIELD_SIZE) {
+    if (totalDrawnCards >= fieldSize) {
       setTimeout(() => setShowModal(true), 600);
       return;
     }
@@ -660,19 +661,26 @@ const pickCardRef = useRef<((card: Card) => void) | null>(null);
             </>
           )}
 
-          {/* ★ Amazonアフィリエイト枠 ★ */}
+          {/* ★ リンク枠（URLがあれば直接リンク、なければAmazon） ★ */}
           <div className="amazon-section">
-            <div className="amazon-title">🛒 今回引いたカードをAmazonで探す</div>
+            <div className="amazon-title">
+              {(isMulti ? players[0]?.hand ?? [] : hand).some(c => c.url) 
+                ? "🎧 今回引いた動画を観る" 
+                : "🛒 今回引いたカードをAmazonで探す"}
+            </div>
             <div className="amazon-cards">
               {(isMulti ? players[0]?.hand ?? [] : hand).slice(0, 3).map((c, i) => (
                 <a 
                   key={i} 
-                  href={`https://www.amazon.co.jp/s?k=${encodeURIComponent(c.name)}&tag=ash44-22`} 
+                  /* urlがあればそのリンクへ、なければAmazonへ */
+                  href={c.url ? c.url : `https://www.amazon.co.jp/s?k=${encodeURIComponent(c.name)}&tag=ash44-22`} 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="amazon-link"
+                  /* YouTubeリンクの場合は少し赤っぽくする */
+                  style={c.url ? { color: '#cc0000', borderColor: '#ffcccc' } : {}}
                 >
-                  🔍 {c.name}
+                  {c.url ? `▶️ ${c.name} ${c.hint}` : `🔍 ${c.name}`}
                 </a>
               ))}
             </div>

@@ -1,12 +1,13 @@
 // data/types.ts
 export type GameMode = "normal" | "battle";
 
-export type ThemeKey = "manga" | "movies" | "countries" | "anime" | "history" | "chains";
+export type ThemeKey = "manga" | "movies" | "countries" | "anime" | "history" | "primes"| "chains";
 
 export interface Card {
   name: string;
   value: number;
   hint: string;
+  url?: string; //勝敗結果でURLがあればそちらのリンク、なければAmazonのリンクが作るられる
 }
 
 export interface Theme {

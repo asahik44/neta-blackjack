@@ -8,6 +8,8 @@ export default function Home() {
   const [numPlayers, setNumPlayers] = useState<number>(1);
   const [gameMode, setGameMode] = useState<GameMode>("normal");
   const [activeTheme, setActiveTheme] = useState<ThemeKey | null>(null);
+  const [multiplier, setMultiplier] = useState<number>(1);
+  const [fieldSize, setFieldSize] = useState<number>(30);
 
   const handleStartGame = (key: ThemeKey) => {
     setActiveTheme(key);
@@ -19,6 +21,8 @@ export default function Home() {
         themeKey={activeTheme} 
         numPlayers={numPlayers} // ★ バトルモードでも強制的に2人にせず、選んだ人数を渡す！
         gameMode={gameMode}
+        multiplier={multiplier} // ★ Gameに渡す
+        fieldSize={fieldSize}   // ★ Gameに渡す
         onBack={() => setActiveTheme(null)}
       />
     );
@@ -88,6 +92,33 @@ export default function Home() {
               </span>
             </label>
           ))}
+        </div>
+
+      <div className="section-label">CUSTOM RULES</div>
+        <div style={{ background: '#f8f9fa', padding: '12px', borderRadius: '12px', marginBottom: '24px' }}>
+          <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#555', marginBottom: '8px' }}>🎯 目標値の倍率</div>
+          <div className="mode-select" style={{ marginBottom: '16px' }}>
+            {[0.5, 1, 2, 3].map((mult) => (
+              <label key={mult} style={{ flex: 1 }}>
+                <input type="radio" name="mult" value={mult} checked={multiplier === mult} onChange={() => setMultiplier(mult)} />
+                <span className="mode-label" style={multiplier === mult ? { color: '#e67e22', borderColor: '#e67e22', background: '#fff5eb', padding: '8px 4px' } : { padding: '8px 4px' }}>
+                  {mult === 0.5 ? '半分' : mult === 1 ? '標準' : `x${mult}`}
+                </span>
+              </label>
+            ))}
+          </div>
+
+          <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#555', marginBottom: '8px' }}>🃏 並べるカード枚数</div>
+          <div className="mode-select">
+            {[20, 30, 50, 100].map((size) => (
+              <label key={size} style={{ flex: 1 }}>
+                <input type="radio" name="fsize" value={size} checked={fieldSize === size} onChange={() => setFieldSize(size)} />
+                <span className="mode-label" style={fieldSize === size ? { color: '#e67e22', borderColor: '#e67e22', background: '#fff5eb', padding: '8px 4px' } : { padding: '8px 4px' }}>
+                  {size === 100 ? 'MAX(100)' : `${size}枚`}
+                </span>
+              </label>
+            ))}
+          </div>
         </div>
 
         <div className="section-label">SELECT THEME</div>

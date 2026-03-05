@@ -31,11 +31,43 @@ button {
 #title .desc span { color: #111; font-weight: 700; }
 
 /* ボタン：背景を真っ白にし、影を少し濃くしてメリハリをつける */
-.theme-btn { width: 100%; max-width: 360px; padding: 15px 18px; background: #ffffff; border: 1px solid rgba(0, 0, 0, 0.05); border-radius: 14px; color: #333; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 12px; text-align: left; transition: all 0.2s; margin-bottom: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
+.theme-btn { 
+  width: 100%; 
+  max-width: 480px; /* ★ 360pxから広げて横長にする */
+  padding: 15px 18px; 
+  background: #ffffff; 
+  border: 1px solid rgba(0, 0, 0, 0.05); 
+  border-radius: 14px; 
+  color: #333; 
+  font-size: 16px; 
+  font-weight: 700; 
+  display: flex; 
+  align-items: center; 
+  gap: 12px; 
+  text-align: left; 
+  transition: all 0.2s; 
+  margin-bottom: 10px; 
+  box-shadow: 0 4px 12px rgba(0,0,0,0.06); 
+  white-space: nowrap; /* ★ 文字を絶対に折り返さない */
+  overflow: hidden;    /* はみ出た場合に備える */
+}
 .theme-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.12); }
-.theme-btn .emoji { font-size: 28px; width: 36px; text-align: center; }
-.theme-btn .info { font-size: 11px; color: #777; font-weight: 500; margin-top: 2px; }
-
+.theme-btn .emoji { 
+  font-size: 28px; 
+  width: 64px;       /* ★ 36pxから広げて絵文字2つ分を確保 */
+  flex-shrink: 0;    /* ★ 横幅が狭くなっても絵文字を潰さない */
+  text-align: center; 
+  display: flex;     /* 🕶️🎭を並べる用 */
+  justify-content: center;
+  gap: 4px;
+}
+.theme-btn .info { 
+  font-size: 10.5px; /* ★ 11pxから微調整 */
+  color: #777; 
+  font-weight: 500; 
+  margin-top: 2px; 
+  letter-spacing: -0.02em; /* 文字間をわずかに詰める */
+}
 .section-label { color: #777; font-size: 10px; letter-spacing: 3px; text-align: center; margin-bottom: 8px; font-weight: 800; }
 
 /* 遊び方パネルも同様に影を強調 */
@@ -67,7 +99,15 @@ button {
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
 
 /* マルチプレイ用パネル */
-.players-area { display: flex; gap: 8px; margin-bottom: 10px; overflow-x: auto; padding-bottom: 4px; }
+.players-area { 
+  display: flex; 
+  gap: 8px; 
+  margin-bottom: 10px; 
+  overflow-x: auto; 
+  /* ↓ 上に余裕を持たせて、浮き上がった時に切れないようにする */
+  padding-top: 4px;    
+  padding-bottom: 4px; 
+}
 .player-panel { flex: 1; min-width: 0; padding: 10px; border-radius: 12px; background: #ffffff; border: 1.5px solid rgba(0,0,0,0.05); transition: all 0.3s; box-shadow: 0 2px 6px rgba(0,0,0,0.02); }
 .player-panel.active { border-width: 2px; transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,0,0,0.08); }
 .player-panel.stopped { opacity: 0.5; background: #f8fafc; }
