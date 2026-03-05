@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { THEMES, ThemeKey, Card, GameMode } from "../data/themes";
 import Confetti from "react-confetti"; 
 
@@ -34,7 +34,7 @@ export default function Game({ themeKey, numPlayers, gameMode, onBack }: GamePro
   const isBattle = gameMode === "battle";
   const activeTarget = isBattle ? t.battleTarget : t.target;
 
-    const playSound = (type: 'select' | 'win' | 'lose' | 'perfect' | 'bust') => {
+  const playSound = (type: 'select' | 'win' | 'lose' | 'perfect' | 'bust') => {
     const audio = new Audio(`/sounds/${type}.mp3`);
     audio.volume = 0.5;
     audio.play().catch(err => console.log("音声の再生がブロックされました", err));
@@ -63,8 +63,13 @@ export default function Game({ themeKey, numPlayers, gameMode, onBack }: GamePro
   const [allMultiBust, setAllMultiBust] = useState(false);
 
   // Battle specific
-  const [battleLoser, setBattleLoser] = useState<number | null>(null); // バーストした人のインデックス
-  const [sharedTotal, setSharedTotal] = useState(0); // 共通の爆弾ゲージ
+  const [battleLoser, setBattleLoser] = useState<number | null>(null);
+  const [sharedTotal, setSharedTotal] = useState(0);
+
+  // ★ FIX: ゲーム初期化完了フラグ（CPU useEffectの暴発を防ぐ）
+  const [gameReady, setGameReady] = useState(false);
+  // ★ FIX: CPUが動作中かどうかのフラグ（連続発火を防ぐ）
+  const cpuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setWindowSize({ width: window.innerWidth, height: window.innerHeight });
@@ -79,6 +84,10 @@ export default function Game({ themeKey, numPlayers, gameMode, onBack }: GamePro
   }, [round]);
 
   const initGame = () => {
+    // ★ FIX: 初期化開始時にフラグをリセット
+    setGameReady(false);
+    if (cpuTimerRef.current) { clearTimeout(cpuTimerRef.current); cpuTimerRef.current = null; }
+
     const shuffled = shuffleArray(t.cards).slice(0, FIELD_SIZE);
     setField(shuffled);
     setPicking(false);
@@ -88,7 +97,6 @@ export default function Game({ themeKey, numPlayers, gameMode, onBack }: GamePro
     setSharedTotal(0);
 
     if (isBattle) {
-      // バトルモードの人数設定（1人の場合は CPU を追加して2人対戦にする）
       const totalBattlePlayers = numPlayers === 1 ? 2 : numPlayers;
       const initialPlayers = Array.from({ length: totalBattlePlayers }).map((_, i) => ({
         name: numPlayers === 1 && i === 1 ? "CPU" : PLAYER_NAMES[i],
@@ -110,25 +118,16 @@ export default function Game({ themeKey, numPlayers, gameMode, onBack }: GamePro
       setPlayers(initialPlayers);
       setCurrentPlayerIdx(0);
     }
+
+    // ★ FIX: 次のレンダーサイクルでgameReadyをtrueにする
+    // （setStateは非同期なので、上のstate更新が全部反映された後にreadyにしたい）
+    setTimeout(() => setGameReady(true), 100);
   };
 
-  // ★ CPUの自動プレイロジック！ ★
-  useEffect(() => {
-    if (!isBattle || picking || showModal || field.length === 0 || battleLoser !== null) return;
+  // ★ FIX: pickCardをuseCallbackでメモ化 + refで最新版を保持
+const pickCardRef = useRef<((card: Card) => void) | null>(null);
 
-    const currentPlayer = players[currentPlayerIdx];
-    // 今のターンがCPUなら、自動でカードを選ぶ
-    if (currentPlayer?.isCpu) {
-      const timer = setTimeout(() => {
-        const randomIndex = Math.floor(Math.random() * field.length);
-        pickCard(field[randomIndex]);
-      }, 1200); // 1.2秒考えてから引く
-      return () => clearTimeout(timer);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPlayerIdx, picking, showModal, field, players, isBattle, battleLoser]);
-
-  const pickCard = (card: Card) => {
+  const pickCard = useCallback((card: Card) => {
     if (picking) return;
     setPicking(true);
     setRevealedCardName(card.name);
@@ -142,7 +141,40 @@ export default function Game({ themeKey, numPlayers, gameMode, onBack }: GamePro
       else if (numPlayers === 1) handleSoloPick(card);
       else handleMultiPick(card);
     }, 400); 
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [picking, field, players, currentPlayerIdx, total, hand, sharedTotal, isBattle, numPlayers]);
+
+  // refを常に最新のpickCardに更新
+  useEffect(() => {
+    pickCardRef.current = pickCard;
+  }, [pickCard]);
+
+  // ★ FIX: CPUの自動プレイロジック（安全版）
+  useEffect(() => {
+    // ガード条件：ゲームが準備できていない、またはバトルモードでない場合は何もしない
+    if (!gameReady || !isBattle || picking || showModal || battleLoser !== null) return;
+    // players配列が空、またはフィールドが空なら何もしない
+    if (players.length === 0 || field.length === 0) return;
+
+    const currentPlayer = players[currentPlayerIdx];
+    if (!currentPlayer || !currentPlayer.isCpu) return;
+
+    // ★ FIX: 既にタイマーが走っていたら何もしない（連続発火防止）
+    if (cpuTimerRef.current) return;
+
+    cpuTimerRef.current = setTimeout(() => {
+      cpuTimerRef.current = null;
+      // 実行時点でもう一度状態をチェック（stale closure対策でrefを使う）
+      if (pickCardRef.current && field.length > 0) {
+        const randomIndex = Math.floor(Math.random() * field.length);
+        pickCardRef.current(field[randomIndex]);
+      }
+    }, 1200);
+
+    return () => {
+      if (cpuTimerRef.current) { clearTimeout(cpuTimerRef.current); cpuTimerRef.current = null; }
+    };
+  }, [gameReady, currentPlayerIdx, picking, showModal, field, players, isBattle, battleLoser]);
 
   // ========== SOLO ==========
   const handleSoloPick = (card: Card) => {
@@ -183,9 +215,11 @@ export default function Game({ themeKey, numPlayers, gameMode, onBack }: GamePro
       checkMultiResult(currentPlayers);
       return;
     }
-    let next = (currentPlayerIdx + 1) % numPlayers;
+    // ★ FIX: players.lengthを使う（numPlayersではなく実際のプレイヤー数）
+    const playerCount = currentPlayers.length;
+    let next = (currentPlayerIdx + 1) % playerCount;
     while (currentPlayers[next].stopped || currentPlayers[next].busted) {
-      next = (next + 1) % numPlayers;
+      next = (next + 1) % playerCount;
     }
     setCurrentPlayerIdx(next);
   };
@@ -210,7 +244,6 @@ export default function Game({ themeKey, numPlayers, gameMode, onBack }: GamePro
       setPlayers(nextPlayers);
       setBattleLoser(currentPlayerIdx);
 
-      // CPUが負けたら「WIN」の音、自分が負けたら「LOSE」の音
       playSound(p.isCpu ? 'win' : 'lose');
       setTimeout(() => setShowModal(true), 600);
       return;
@@ -222,9 +255,9 @@ export default function Game({ themeKey, numPlayers, gameMode, onBack }: GamePro
       return;
     }
 
-    // ★ 次の人のターンへ（3人以上にも対応！）
+    // 次の人のターンへ
     setTimeout(() => {
-      const nextIdx = (currentPlayerIdx + 1) % players.length;
+      const nextIdx = (currentPlayerIdx + 1) % nextPlayers.length;
       setCurrentPlayerIdx(nextIdx);
     }, 300);
   };
@@ -321,7 +354,6 @@ export default function Game({ themeKey, numPlayers, gameMode, onBack }: GamePro
 
   let modalAnimationClass = "";
   if (isPerfect) modalAnimationClass = "perfect-modal";
-  // バトルモードで、人間が生き残った（＝CPUか他人が死んだ）時だけペカペカさせる
   else if (battleEnded && !(numPlayers === 1 && battleLoser === 0)) modalAnimationClass = "win-modal";
   else if (isWin) modalAnimationClass = "win-modal";
 
@@ -397,8 +429,19 @@ export default function Game({ themeKey, numPlayers, gameMode, onBack }: GamePro
                   {isBattle ? (
                     <>
                       <div className="p-remain" style={{ color: '#888', marginTop: '2px', fontSize: '11px' }}>
-                        選択数: {fmt(p.total)}{t.unit}
+                        合計: {fmt(p.total)}{t.unit}（{p.hand.length}枚）
                       </div>
+                      {/* バトル用：選んだカード一覧（コンパクト表示） */}
+                      {p.hand.length > 0 && (
+                        <div className="battle-hand">
+                          {p.hand.map((c, ci) => (
+                            <div key={ci} className="battle-hand-card" style={{ borderColor: `${p.color}33` }}>
+                              <span className="battle-hand-name">{c.name}</span>
+                              <span className="battle-hand-val mono" style={{ color: p.color }}>{c.value.toLocaleString()}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       {battleEnded && battleLoser !== i && <div className="p-status" style={{ color: p.color, fontSize: '12px' }}>🏆 SURVIVE!</div>}
                       {battleEnded && battleLoser === i && <div className="p-status" style={{ color: '#ff4444', fontSize: '12px' }}>💥 踏んだ…</div>}
                     </>
@@ -488,7 +531,7 @@ export default function Game({ themeKey, numPlayers, gameMode, onBack }: GamePro
                   key={c.name}
                   className={`field-card ${isRevealed ? 'revealed' : ''}`}
                   // ★ CPUのターン中は人間がクリックできないようにブロック！
-                  disabled={picking || battleEnded || (!isMulti && !!soloResult) || (isMulti && !isBattle && players[currentPlayerIdx]?.stopped) || players[currentPlayerIdx]?.isCpu}
+                  disabled={picking || battleEnded || (!isMulti && !!soloResult) || (isMulti && !isBattle && players[currentPlayerIdx]?.stopped) || (players[currentPlayerIdx]?.isCpu ?? false)}
                   onClick={() => pickCard(c)}
                   style={isRevealed ? { borderColor: revealColor, background: `${revealColor}15` } : {}}
                 >
@@ -540,12 +583,12 @@ export default function Game({ themeKey, numPlayers, gameMode, onBack }: GamePro
                   ? (
                     <>
                       <span style={{ fontSize: '16px', color: '#ff4444', display: 'block', marginBottom: '4px' }}>
-                        {players[battleLoser].name} がドカン！💥
+                        {players[battleLoser]?.name} がドカン！💥
                       </span>
-                      <span style={{ color: players.length === 2 ? players[battleLoser === 0 ? 1 : 0].color : '#e67e22' }}>
+                      <span style={{ color: players.length === 2 ? players[battleLoser === 0 ? 1 : 0]?.color : '#e67e22' }}>
                         {players.length === 2
-                          ? `${players[battleLoser === 0 ? 1 : 0].name} の勝ち！`
-                          : '生存者の勝ち！' // 3人の時は「生存者の勝ち！」
+                          ? `${players[battleLoser === 0 ? 1 : 0]?.name} の勝ち！`
+                          : '生存者の勝ち！'
                         }
                       </span>
                     </>
@@ -560,10 +603,10 @@ export default function Game({ themeKey, numPlayers, gameMode, onBack }: GamePro
               <div className="result-ranking">
                 {players.map((p, i) => {
                   const isLoserP = battleLoser === i;
-                  const isWinner = battleLoser !== null && !isLoserP;
+                  const isWinnerP = battleLoser !== null && !isLoserP;
                   return (
                     <div className="rank-row" key={i}>
-                      <div className="rank-pos">{isWinner ? '🏆' : '💥'}</div>
+                      <div className="rank-pos">{isWinnerP ? '🏆' : '💥'}</div>
                       <div className="rank-name" style={{ color: p.color }}>{p.emoji} {p.name}</div>
                       <div className="rank-val mono" style={{ color: isLoserP ? '#ff4444' : '#333' }}>
                         選択数: {fmt(p.total)}{t.unit}
@@ -617,15 +660,13 @@ export default function Game({ themeKey, numPlayers, gameMode, onBack }: GamePro
             </>
           )}
 
-        {/* ★ Amazonアフィリエイト枠 ★ */}
+          {/* ★ Amazonアフィリエイト枠 ★ */}
           <div className="amazon-section">
             <div className="amazon-title">🛒 今回引いたカードをAmazonで探す</div>
             <div className="amazon-cards">
-              {/* 自分が引いたカードから最大3枚を抽出してリンク化 */}
-              {(isMulti ? players[0]?.hand : hand).slice(0, 3).map((c, i) => (
+              {(isMulti ? players[0]?.hand ?? [] : hand).slice(0, 3).map((c, i) => (
                 <a 
                   key={i} 
-                  /* ★ YOUR_TAG-22 の部分を自分のAmazonアソシエイトタグに変えます */
                   href={`https://www.amazon.co.jp/s?k=${encodeURIComponent(c.name)}&tag=ash44-22`} 
                   target="_blank" 
                   rel="noopener noreferrer"

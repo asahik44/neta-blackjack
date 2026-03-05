@@ -5,14 +5,17 @@ import { mangaTheme } from "./manga";
 import { countriesTheme } from "./countries";
 import { animeTheme } from "./anime";
 import { moviesTheme } from "./movies";
+import { historyTheme } from "./history";
 
 // 全てのテーマを1つにまとめる
 export const THEMES: Record<ThemeKey, Theme> = {
-  chains: chainsTheme,
   manga: mangaTheme,
-  countries: countriesTheme,
   anime: animeTheme,
   movies: moviesTheme,
+  history: historyTheme,
+  chains: chainsTheme,
+  countries: countriesTheme,
+
 };
 
 export type { ThemeKey, Theme, Card, GameMode };

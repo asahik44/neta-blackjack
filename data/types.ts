@@ -1,9 +1,7 @@
 // data/types.ts
-
-// ★ これを追加
 export type GameMode = "normal" | "battle";
 
-export type ThemeKey = "chains" | "manga" | "countries" | "anime" | "movies";
+export type ThemeKey = "manga" | "movies" | "countries" | "anime" | "history" | "chains";
 
 export interface Card {
   name: string;
