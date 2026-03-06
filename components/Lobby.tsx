@@ -52,7 +52,6 @@ export default function Lobby({ roomId }: LobbyProps) {
   const shareText = roomData ? `「ネタ・ブラックジャック」の通信対戦に招待されています！\nテーマ: ${THEMES[roomData.theme_key as ThemeKey]?.name}\n` : "";
   
   const hasQuery = shareUrl.includes('?');
-  // ★ ここを大文字対応の openExternalBrowser=1 に修正！
   const lineShareUrl = shareUrl ? `${shareUrl}${hasQuery ? '&' : '?'}openExternalBrowser=1` : "";
 
   const trackShare = (method: string) => {
@@ -78,7 +77,16 @@ export default function Lobby({ roomId }: LobbyProps) {
 
   return (
     <div style={{ padding: '24px', maxWidth: '400px', margin: '0 auto' }}>
-      <h2 style={{ textAlign: 'center', marginBottom: '20px' }}>🏨 待機ロビー</h2>
+      
+      {/* ★ トップへ戻るボタンを追加！ */}
+      <button 
+        onClick={() => window.location.href = '/'}
+        style={{ marginBottom: '16px', background: 'none', border: 'none', color: '#555', fontSize: '14px', cursor: 'pointer', padding: 0, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}
+      >
+        <span>←</span> タイトルへ戻る
+      </button>
+
+      <h2 style={{ textAlign: 'center', marginBottom: '20px', marginTop: 0 }}>🏨 待機ロビー</h2>
       
       <div style={{ background: '#ffffff', padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: '24px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
         <div style={{ fontSize: '12px', color: '#777', fontWeight: 'bold' }}>ROOM ID</div>
