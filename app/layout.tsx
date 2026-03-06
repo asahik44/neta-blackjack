@@ -15,17 +15,18 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "ネタ・ブラックジャック",
-  description: "並んだカードの名前だけを見て選べ！知識と予想で目標値にピッタリ寄せる新感覚ブラックジャック！",
+  description: "知識 × 予想 × 駆け引き！カードの名前だけを見て選び、目標数値にピッタリ寄せろ💥 1台でも、オンラインでも遊べる新感覚チキンレース！",
   openGraph: {
     title: "ネタ・ブラックジャック",
-    description: "並んだカードの名前だけを見て選べ！知識と予想で目標値にピッタリ寄せる新感覚ブラックジャック！",
-    siteName: "ネタ・ブラックジャック",
+    description: "知識 × 予想 × 駆け引き！カードの名前だけを見て選び、目標数値にピッタリ寄せろ💥",
     type: "website",
+    locale: "ja_JP",
+    siteName: "ネタ・ブラックジャック",
   },
   twitter: {
-    card: "summary_large_image", // 大きい画像を表示する設定
+    card: "summary_large_image",
     title: "ネタ・ブラックジャック",
-    description: "並んだカードの名前だけを見て選べ！知識と予想で目標値にピッタリ寄せる新感覚ブラックジャック！",
+    description: "知識 × 予想 × 駆け引き！カードの名前だけを見て選び、目標数値にピッタリ寄せろ💥",
   },
 };
 
