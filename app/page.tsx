@@ -129,7 +129,8 @@ function HomeContent() {
         ) : (
           <div style={{ textAlign: 'center', fontSize: '13px', color: '#555', marginBottom: '24px', padding: '16px', background: '#e3f2fd', borderRadius: '12px', border: '1px solid #bbdefb' }}>
             🌐 通信対戦は自動的に<strong>「バトルモード」</strong>になります。<br/>
-            テーマを選んで部屋を作り、友達にURLを共有しましょう！
+            テーマを選んで部屋を作り、友達にURLを共有しましょう！<br/>
+            最大5人まで同時プレイ可能。
           </div>
         )}
 
