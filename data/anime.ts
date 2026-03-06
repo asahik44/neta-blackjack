@@ -3,8 +3,8 @@ import { Theme } from "./types";
 
 export const animeTheme: Theme = {
 name: "アニメの放送話数",
-    target: 1000,
-    battleTarget: 1500, //対戦モード
+    target: 300,
+    battleTarget: 500, //対戦モード
     unit: "話",
     emoji: "📺",
     color: "#E63946",

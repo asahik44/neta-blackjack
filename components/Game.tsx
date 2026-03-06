@@ -3,22 +3,24 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { THEMES, ThemeKey, Card, GameMode } from "../data/themes";
 import Confetti from "react-confetti"; 
+import { supabase } from "@/lib/supabase";
 
 interface GameProps {
   themeKey: ThemeKey;
   numPlayers: number;
   gameMode: GameMode;
-  multiplier: number; // ★ 追加：目標値の倍率
-  fieldSize: number;  // ★ 追加：カードの枚数
+  multiplier: number; 
+  fieldSize: number;  
   onBack: () => void;
+  roomId?: string;
+  myPlayerId?: string | null;
 }
 
-// バトルでも通常でも、この色と名前を使います（最大3人）
-const PLAYER_COLORS = ["#e63946", "#2196F3", "#7CFC00"];
-const PLAYER_NAMES = ["Player 1", "Player 2", "Player 3"];
-const PLAYER_EMOJIS = ["🔴", "🔵", "🟢"];
+const PLAYER_COLORS = ["#FF4B00", "#005AFF", "#03AF7A", "#990099", "#F6AA00"];
+const PLAYER_NAMES = ["Player 1", "Player 2", "Player 3", "Player 4", "Player 5"];
+const PLAYER_EMOJIS = ["🔴", "🔵", "🟢", "🟣", "🟠"];
 
-type Player = { name: string; color: string; emoji: string; hand: Card[]; total: number; stopped: boolean; busted: boolean; diff?: number; isCpu?: boolean; };
+type Player = { id?: string; name: string; color: string; emoji: string; hand: Card[]; total: number; stopped: boolean; busted: boolean; diff?: number; isCpu?: boolean; isHost?: boolean; };
 
 function shuffleArray<T>(array: T[]): T[] {
   const arr = [...array];
@@ -30,26 +32,30 @@ function shuffleArray<T>(array: T[]): T[] {
 }
 function fmt(v: number) { return v >= 1 ? Math.round(v).toLocaleString() : v < 0.01 ? "0" : v.toFixed(1); }
 
-export default function Game({ themeKey, numPlayers, gameMode, multiplier, fieldSize, onBack }: GameProps) {
-      const t = THEMES[themeKey];
-  const isBattle = gameMode === "battle";
-  const activeTarget = Math.floor((isBattle ? t.battleTarget : t.target) * multiplier);
+export default function Game({ themeKey, numPlayers, gameMode, multiplier, fieldSize, onBack, roomId, myPlayerId }: GameProps) {
+  const t = THEMES[themeKey];
+  const isBattle = gameMode === "battle" || !!roomId; 
+  const activeTarget = Math.floor(t.target * multiplier);
+  const isOnline = !!roomId && !!myPlayerId;
+
+  const getPlayerName = (p: Player | undefined) => {
+    if (!p) return "";
+    return (isOnline && p.id === myPlayerId) ? "あなた" : p.name;
+  };
 
   const playSound = (type: 'select' | 'win' | 'lose' | 'perfect' | 'bust') => {
     const audio = new Audio(`/sounds/${type}.mp3`);
     audio.volume = 0.5;
-    audio.play().catch(err => console.log("音声の再生がブロックされました", err));
+    audio.play().catch(() => {});
   };
   
   const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
-
   const [field, setField] = useState<Card[]>([]);
   const [round, setRound] = useState(1);
   const [picking, setPicking] = useState(false);
   const [revealedCardName, setRevealedCardName] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
 
-  // Solo state
   const [hand, setHand] = useState<Card[]>([]);
   const [total, setTotal] = useState(0);
   const [score, setScore] = useState(0);
@@ -57,20 +63,19 @@ export default function Game({ themeKey, numPlayers, gameMode, multiplier, field
   const [dealerHand, setDealerHand] = useState<Card[]>([]);
   const [dealerTotal, setDealerTotal] = useState(0);
 
-  // Multi / Battle state
   const [players, setPlayers] = useState<Player[]>([]);
   const [currentPlayerIdx, setCurrentPlayerIdx] = useState(0);
   const [isMultiDraw, setIsMultiDraw] = useState(false);
   const [allMultiBust, setAllMultiBust] = useState(false);
-
-  // Battle specific
   const [battleLoser, setBattleLoser] = useState<number | null>(null);
   const [sharedTotal, setSharedTotal] = useState(0);
 
-  // ★ FIX: ゲーム初期化完了フラグ（CPU useEffectの暴発を防ぐ）
   const [gameReady, setGameReady] = useState(false);
-  // ★ FIX: CPUが動作中かどうかのフラグ（連続発火を防ぐ）
+  const [timeLeft, setTimeLeft] = useState(15);
+
   const cpuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMyTurn = isOnline ? players[currentPlayerIdx]?.id === myPlayerId : true;
+  const amIHost = isOnline ? players.find(p => p.id === myPlayerId)?.isHost : true;
 
   useEffect(() => {
     setWindowSize({ width: window.innerWidth, height: window.innerHeight });
@@ -85,147 +90,211 @@ export default function Game({ themeKey, numPlayers, gameMode, multiplier, field
   }, [round]);
 
   const initGame = () => {
-    // ★ FIX: 初期化開始時にフラグをリセット
     setGameReady(false);
     if (cpuTimerRef.current) { clearTimeout(cpuTimerRef.current); cpuTimerRef.current = null; }
 
-    const shuffled = shuffleArray(t.cards).slice(0, fieldSize);
-    setField(shuffled);
     setPicking(false);
     setRevealedCardName(null);
     setShowModal(false);
     setBattleLoser(null);
     setSharedTotal(0);
+    setTimeLeft(15);
 
-    if (isBattle) {
-      const totalBattlePlayers = numPlayers === 1 ? 2 : numPlayers;
-      const initialPlayers = Array.from({ length: totalBattlePlayers }).map((_, i) => ({
-        name: numPlayers === 1 && i === 1 ? "CPU" : PLAYER_NAMES[i],
-        color: PLAYER_COLORS[i],
-        emoji: numPlayers === 1 && i === 1 ? "🤖" : PLAYER_EMOJIS[i],
-        hand: [], total: 0, stopped: false, busted: false,
-        isCpu: numPlayers === 1 && i === 1
-      }));
-      setPlayers(initialPlayers);
-      setCurrentPlayerIdx(0);
-    } else if (numPlayers === 1) {
-      setHand([]); setTotal(0); setSoloResult(null);
-      setDealerHand([]); setDealerTotal(0);
-    } else {
-      const initialPlayers = Array.from({ length: numPlayers }).map((_, i) => ({
-        name: PLAYER_NAMES[i], color: PLAYER_COLORS[i], emoji: PLAYER_EMOJIS[i],
-        hand: [], total: 0, stopped: false, busted: false
-      }));
-      setPlayers(initialPlayers);
-      setCurrentPlayerIdx(0);
+    if (!isOnline) {
+      const shuffled = shuffleArray(t.cards).slice(0, fieldSize);
+      setField(shuffled);
+      if (isBattle) {
+        const totalBattlePlayers = numPlayers === 1 ? 2 : numPlayers;
+        const initialPlayers = Array.from({ length: totalBattlePlayers }).map((_, i) => ({
+          name: numPlayers === 1 && i === 1 ? "CPU" : PLAYER_NAMES[i],
+          color: PLAYER_COLORS[i], emoji: numPlayers === 1 && i === 1 ? "🤖" : PLAYER_EMOJIS[i],
+          hand: [], total: 0, stopped: false, busted: false, isCpu: numPlayers === 1 && i === 1
+        }));
+        setPlayers(initialPlayers);
+        setCurrentPlayerIdx(0);
+      } else if (numPlayers === 1) {
+        setHand([]); setTotal(0); setSoloResult(null); setDealerHand([]); setDealerTotal(0);
+      } else {
+        const initialPlayers = Array.from({ length: numPlayers }).map((_, i) => ({
+          name: PLAYER_NAMES[i], color: PLAYER_COLORS[i], emoji: PLAYER_EMOJIS[i],
+          hand: [], total: 0, stopped: false, busted: false
+        }));
+        setPlayers(initialPlayers);
+        setCurrentPlayerIdx(0);
+      }
     }
-
-    // ★ FIX: 次のレンダーサイクルでgameReadyをtrueにする
-    // （setStateは非同期なので、上のstate更新が全部反映された後にreadyにしたい）
     setTimeout(() => setGameReady(true), 100);
   };
 
-  // ★ FIX: pickCardをuseCallbackでメモ化 + refで最新版を保持
-const pickCardRef = useRef<((card: Card) => void) | null>(null);
+  useEffect(() => {
+    if (!isOnline || !roomId) return;
+    const syncGameState = (data: any) => {
+      if (!data) return;
+      setField(data.field_cards || []);
+      const dbPlayers = data.players || [];
+      const mappedPlayers = dbPlayers.map((p: any, i: number) => ({
+        ...p, hand: p.hand || [], total: p.total || 0, busted: p.busted || false,
+        color: p.color || PLAYER_COLORS[i % 5], emoji: p.emoji || (p.isHost ? "👑" : PLAYER_EMOJIS[i % 5]),
+      }));
+      setPlayers(mappedPlayers);
+      const newSharedTotal = mappedPlayers.reduce((sum: number, p: any) => sum + p.total, 0);
+      setSharedTotal(newSharedTotal);
 
-  const pickCard = useCallback((card: Card) => {
+      const loserIdx = mappedPlayers.findIndex((p: any) => p.busted);
+      if (loserIdx !== -1) {
+        setBattleLoser(loserIdx);
+      } else {
+        setBattleLoser(null);
+        setShowModal(false);
+        const cardsDrawn = mappedPlayers.reduce((sum: number, p: any) => sum + (p.hand?.length || 0), 0);
+        setCurrentPlayerIdx(cardsDrawn % mappedPlayers.length);
+        if (cardsDrawn >= (data.field_size || 30) && cardsDrawn > 0) {
+           setTimeout(() => setShowModal(true), 600);
+        }
+      }
+    };
+
+    const fetchRoom = async () => {
+      const { data } = await supabase.from("rooms").select("*").eq("id", roomId).single();
+      syncGameState(data);
+    };
+    fetchRoom();
+
+    const channel = supabase.channel(`game-${roomId}`).on("postgres_changes", { event: "*", schema: "public", table: "rooms", filter: `id=eq.${roomId}` }, (payload) => {
+      syncGameState(payload.new);
+    }).subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [isOnline, roomId]);
+
+  useEffect(() => {
+    if (isOnline && battleLoser !== null) {
+      const amILoser = players[battleLoser]?.id === myPlayerId;
+      
+      // ★ 1枚目で自爆したかどうかの判定を追加！
+      const totalDrawn = players.reduce((sum, p) => sum + (p.hand?.length || 0), 0);
+      const isSelfDestruct = totalDrawn === 1;
+
+      if (amILoser) {
+        playSound('bust'); 
+      } else if (isSelfDestruct) {
+        playSound('lose'); // 自爆の時は勝者がいないので、それ以外はLose音
+      } else {
+        const winnerIdx = (battleLoser - 1 + players.length) % players.length;
+        const amIWinner = players[winnerIdx]?.id === myPlayerId;
+        if (amIWinner) playSound('win');
+        else playSound('lose');
+      }
+      setTimeout(() => setShowModal(true), 600);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [battleLoser, isOnline]);
+
+  const pickCardRef = useRef<((card: Card) => void) | null>(null);
+
+  const pickCard = useCallback(async (card: Card) => {
     if (picking) return;
+    if (isOnline && (!isMyTurn || battleLoser !== null) && !amIHost) return; 
+
     setPicking(true);
     setRevealedCardName(card.name);
     playSound('select');
 
+    if (isOnline) {
+      setTimeout(async () => {
+        const newField = field.filter(c => (c.url || c.name) !== (card.url || card.name));
+        const newPlayers = [...players];
+        const currentP = { ...newPlayers[currentPlayerIdx] };
+
+        currentP.hand = [...currentP.hand, card];
+        currentP.total += card.value;
+        const newSharedTotal = sharedTotal + card.value;
+        if (newSharedTotal > activeTarget) currentP.busted = true;
+
+        newPlayers[currentPlayerIdx] = currentP;
+        setField(newField);
+        setPlayers(newPlayers);
+        setSharedTotal(newSharedTotal);
+        setRevealedCardName(null);
+        setPicking(false);
+
+        await supabase.from("rooms").update({ field_cards: newField, players: newPlayers }).eq("id", roomId);
+      }, 400);
+      return;
+    }
+
     setTimeout(() => {
       setField(prev => prev.filter(c => (c.url || c.name) !== (card.url || card.name)));
       setRevealedCardName(null);
-
       if (isBattle) handleBattlePick(card);
       else if (numPlayers === 1) handleSoloPick(card);
       else handleMultiPick(card);
     }, 400); 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [picking, field, players, currentPlayerIdx, total, hand, sharedTotal, isBattle, numPlayers]);
+  }, [picking, field, players, currentPlayerIdx, total, hand, sharedTotal, isBattle, numPlayers, isOnline, isMyTurn, roomId, amIHost]);
 
-  // refを常に最新のpickCardに更新
-  useEffect(() => {
-    pickCardRef.current = pickCard;
-  }, [pickCard]);
+  useEffect(() => { pickCardRef.current = pickCard; }, [pickCard]);
 
-  // ★ FIX: CPUの自動プレイロジック（安全版）
   useEffect(() => {
-    // ガード条件：ゲームが準備できていない、またはバトルモードでない場合は何もしない
-    if (!gameReady || !isBattle || picking || showModal || battleLoser !== null) return;
-    // players配列が空、またはフィールドが空なら何もしない
+    if (!gameReady || picking || showModal || battleLoser !== null || field.length === 0) return;
+    if (timeLeft <= 0) {
+      if (amIHost && pickCardRef.current) {
+        const randomIndex = Math.floor(Math.random() * field.length);
+        pickCardRef.current(field[randomIndex]);
+      }
+      return;
+    }
+    const timer = setTimeout(() => { setTimeLeft(prev => prev - 1); }, 1000);
+    return () => clearTimeout(timer);
+  }, [timeLeft, picking, showModal, battleLoser, gameReady, amIHost, field.length]);
+
+  useEffect(() => { setTimeLeft(15); }, [currentPlayerIdx, picking]);
+
+  useEffect(() => {
+    if (!gameReady || !isBattle || picking || showModal || battleLoser !== null || isOnline) return;
     if (players.length === 0 || field.length === 0) return;
-
     const currentPlayer = players[currentPlayerIdx];
     if (!currentPlayer || !currentPlayer.isCpu) return;
-
-    // ★ FIX: 既にタイマーが走っていたら何もしない（連続発火防止）
     if (cpuTimerRef.current) return;
 
     cpuTimerRef.current = setTimeout(() => {
       cpuTimerRef.current = null;
-      // 実行時点でもう一度状態をチェック（stale closure対策でrefを使う）
       if (pickCardRef.current && field.length > 0) {
         const randomIndex = Math.floor(Math.random() * field.length);
         pickCardRef.current(field[randomIndex]);
       }
     }, 1200);
+    return () => { if (cpuTimerRef.current) { clearTimeout(cpuTimerRef.current); cpuTimerRef.current = null; } };
+  }, [gameReady, currentPlayerIdx, picking, showModal, field, players, isBattle, battleLoser, isOnline]);
 
-    return () => {
-      if (cpuTimerRef.current) { clearTimeout(cpuTimerRef.current); cpuTimerRef.current = null; }
-    };
-  }, [gameReady, currentPlayerIdx, picking, showModal, field, players, isBattle, battleLoser]);
-
-  // ========== SOLO ==========
   const handleSoloPick = (card: Card) => {
     const newTotal = total + card.value;
     setHand(prev => [...prev, card]);
     setTotal(newTotal);
-
-    if (newTotal > activeTarget) {
-      setSoloResult('bust');
-      playSound('bust');
-      setTimeout(() => setShowModal(true), 500);
-    }
+    if (newTotal > activeTarget) { setSoloResult('bust'); playSound('bust'); setTimeout(() => setShowModal(true), 500); }
     setPicking(false);
   };
 
-  // ========== MULTI (normal) ==========
   const handleMultiPick = (card: Card) => {
     const nextPlayers = [...players];
     const p = { ...nextPlayers[currentPlayerIdx] };
     p.hand = [...p.hand, card];
     p.total += card.value;
-    
-    if (p.total > activeTarget) {
-      p.busted = true;
-      p.stopped = true;
-      playSound('bust');
-    }
+    if (p.total > activeTarget) { p.busted = true; p.stopped = true; playSound('bust'); }
     nextPlayers[currentPlayerIdx] = p;
     setPlayers(nextPlayers);
     setPicking(false);
-
     setTimeout(() => advanceTurn(nextPlayers), 300); 
   };
 
   const advanceTurn = (currentPlayers: Player[]) => {
     const allDone = currentPlayers.every(p => p.stopped || p.busted);
-    if (allDone) {
-      checkMultiResult(currentPlayers);
-      return;
-    }
-    // ★ FIX: players.lengthを使う（numPlayersではなく実際のプレイヤー数）
+    if (allDone) { checkMultiResult(currentPlayers); return; }
     const playerCount = currentPlayers.length;
     let next = (currentPlayerIdx + 1) % playerCount;
-    while (currentPlayers[next].stopped || currentPlayers[next].busted) {
-      next = (next + 1) % playerCount;
-    }
+    while (currentPlayers[next].stopped || currentPlayers[next].busted) { next = (next + 1) % playerCount; }
     setCurrentPlayerIdx(next);
   };
 
-  // ========== BATTLE ==========
   const handleBattlePick = (card: Card) => {
     const nextPlayers = [...players];
     const p = { ...nextPlayers[currentPlayerIdx] };
@@ -238,71 +307,48 @@ const pickCardRef = useRef<((card: Card) => void) | null>(null);
     const newSharedTotal = sharedTotal + card.value;
     setSharedTotal(newSharedTotal);
 
-    // バースト判定
     if (newSharedTotal > activeTarget) {
       p.busted = true;
       nextPlayers[currentPlayerIdx] = p;
       setPlayers(nextPlayers);
       setBattleLoser(currentPlayerIdx);
-
-      playSound(p.isCpu ? 'win' : 'lose');
+      
+      if (numPlayers === 1) playSound(p.isCpu ? 'win' : 'bust');
+      else playSound('bust');
+      
       setTimeout(() => setShowModal(true), 600);
       return;
     }
 
     const totalDrawnCards = nextPlayers.reduce((sum, player) => sum + player.hand.length, 0);
-    if (totalDrawnCards >= fieldSize) {
-      setTimeout(() => setShowModal(true), 600);
-      return;
-    }
-
-    // 次の人のターンへ
-    setTimeout(() => {
-      const nextIdx = (currentPlayerIdx + 1) % nextPlayers.length;
-      setCurrentPlayerIdx(nextIdx);
-    }, 300);
+    if (totalDrawnCards >= fieldSize) { setTimeout(() => setShowModal(true), 600); return; }
+    setTimeout(() => { setCurrentPlayerIdx((currentPlayerIdx + 1) % nextPlayers.length); }, 300);
   };
 
-  // ========== STAND (normal modes only) ==========
   const doStand = () => {
     if (picking || isBattle) return;
     if (numPlayers === 1) {
       if (soloResult) return;
-      
       const sortedField = [...field].sort((a, b) => b.value - a.value);
-      let dTotal = 0;
-      let dHand: Card[] = [];
+      let dTotal = 0; let dHand: Card[] = [];
       for (const c of sortedField) {
         if (dTotal + c.value <= activeTarget) { dHand.push(c); dTotal += c.value; }
         if (dTotal >= total) break;
       }
       if (dTotal < total) {
         for (const c of sortedField) {
-          if (!dHand.includes(c) && dTotal + c.value <= activeTarget) {
-            dHand.push(c); dTotal += c.value;
-            if (dTotal >= total) break;
-          }
+          if (!dHand.includes(c) && dTotal + c.value <= activeTarget) { dHand.push(c); dTotal += c.value; if (dTotal >= total) break; }
         }
       }
-
-      setDealerHand(dHand);
-      setDealerTotal(dTotal);
+      setDealerHand(dHand); setDealerTotal(dTotal);
 
       setTimeout(() => {
         const pDiff = Math.abs(total - activeTarget);
         const dDiff = Math.abs(dTotal - activeTarget);
         let res: 'win' | 'lose' | 'perfect' = 'lose';
-        
-        if (dTotal > activeTarget) {
-          setScore(s => s + Math.max(Math.round((1 - pDiff / activeTarget) * 1000), 100));
-          res = 'win';
-        } else if (pDiff <= dDiff) {
-          setScore(s => s + Math.max(Math.round((1 - pDiff / activeTarget) * 1000), 100) + (pDiff === 0 ? 500 : 0));
-          res = pDiff === 0 ? 'perfect' : 'win';
-        }
-        setSoloResult(res);
-        playSound(res);
-        setShowModal(true);
+        if (dTotal > activeTarget) { setScore(s => s + Math.max(Math.round((1 - pDiff / activeTarget) * 1000), 100)); res = 'win'; } 
+        else if (pDiff <= dDiff) { setScore(s => s + Math.max(Math.round((1 - pDiff / activeTarget) * 1000), 100) + (pDiff === 0 ? 500 : 0)); res = pDiff === 0 ? 'perfect' : 'win'; }
+        setSoloResult(res); playSound(res); setShowModal(true);
       }, 1200);
 
     } else {
@@ -313,12 +359,11 @@ const pickCardRef = useRef<((card: Card) => void) | null>(null);
     }
   };
 
-  // ========== MULTI RESULT ==========
   const checkMultiResult = (finalPlayers: Player[]) => {
     const ranked = [...finalPlayers].map(p => ({ ...p, diff: Math.abs(p.total - activeTarget) })).sort((a, b) => {
       if (a.busted && !b.busted) return 1;
       if (!a.busted && b.busted) return -1;
-      return a.diff - b.diff;
+      return (a.diff || 0) - (b.diff || 0);
     });
     
     const isAllBust = ranked.every(r => r.busted);
@@ -326,77 +371,84 @@ const pickCardRef = useRef<((card: Card) => void) | null>(null);
     setIsMultiDraw(!ranked[0].busted && ranked.length > 1 && !ranked[1].busted && ranked[0].diff === ranked[1].diff);
     setPlayers(ranked); 
 
-    if (isAllBust) {
-      playSound('lose');
-    } else if (ranked[0].diff === 0 && !ranked[0].busted) {
-      playSound('perfect');
-    } else {
-      playSound('win');
-    }
-
+    if (isAllBust) playSound('lose');
+    else if (ranked[0].diff === 0 && !ranked[0].busted) playSound('perfect');
+    else playSound('win');
     setTimeout(() => setShowModal(true), 500);
   };
 
-  // ========== RENDER HELPERS ==========
-  const isMulti = numPlayers > 1 || isBattle;
+  const handleRetry = async () => {
+    if (isOnline) {
+      const newDeck = shuffleArray(t.cards).slice(0, fieldSize);
+      const resetPlayers = players.map(p => ({ ...p, hand: [], total: 0, busted: false, stopped: false }));
+      await supabase.from("rooms").update({ field_cards: newDeck, players: resetPlayers, status: "playing" }).eq("id", roomId);
+    } else {
+      setRound(r => r + 1);
+    }
+  };
+
+  const handleBackToTitle = async () => {
+    if (isOnline && battleLoser === null) {
+      const newPlayers = [...players];
+      const myIndex = newPlayers.findIndex(p => p.id === myPlayerId);
+      if (myIndex !== -1) {
+        newPlayers[myIndex].busted = true;
+        await supabase.from("rooms").update({ players: newPlayers }).eq("id", roomId);
+      }
+    }
+    onBack();
+  };
+
+  const isMulti = numPlayers > 1 || isBattle || isOnline;
   const isSoloBust = soloResult === 'bust';
   const soloRatio = activeTarget > 0 ? Math.min((total / activeTarget) * 100, 100) : 0;
   
-  const showStandBtn = !isBattle && (
-    isMulti 
-      ? (!players[currentPlayerIdx]?.busted && players[currentPlayerIdx]?.hand.length > 0)
-      : (!soloResult && hand.length > 0)
-  );
+  const showStandBtn = !isBattle && (isMulti ? (!players[currentPlayerIdx]?.busted && players[currentPlayerIdx]?.hand.length > 0) : (!soloResult && hand.length > 0));
 
   const isPerfect = !isMulti && soloResult === 'perfect';
   const isWin = (!isMulti && soloResult === 'win') || (isMulti && !isBattle && !allMultiBust && !isMultiDraw);
   const battleEnded = isBattle && battleLoser !== null;
   const showField = isBattle ? !battleEnded : (!soloResult && !showModal);
 
+  // ★ 全体のドロー枚数から「1枚目で自爆したか」を判定
+  const totalDrawnGlobal = players.reduce((sum, p) => sum + (p.hand?.length || 0), 0);
+  const isSelfDestructGlobal = totalDrawnGlobal === 1;
+
+  const battleWinnerIdx = (battleLoser !== null && !isSelfDestructGlobal) ? (battleLoser - 1 + players.length) % players.length : null;
+  const isOfflineBattleWin = isBattle && !isOnline && battleLoser !== null && !isSelfDestructGlobal && !(numPlayers === 1 && battleLoser === 0);
+  const isOnlineBattleWin = isBattle && isOnline && battleWinnerIdx !== null && players[battleWinnerIdx]?.id === myPlayerId;
+  const showBattleConfetti = isOfflineBattleWin || isOnlineBattleWin;
+
   let modalAnimationClass = "";
   if (isPerfect) modalAnimationClass = "perfect-modal";
-  else if (battleEnded && !(numPlayers === 1 && battleLoser === 0)) modalAnimationClass = "win-modal";
+  else if (showBattleConfetti) modalAnimationClass = "win-modal"; 
   else if (isWin) modalAnimationClass = "win-modal";
 
   return (
     <div id="game">
       
-      {showModal && (isPerfect || isWin || (battleEnded && !(numPlayers === 1 && battleLoser === 0))) && (
+      {showModal && (isPerfect || isWin || showBattleConfetti) && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 101, pointerEvents: 'none' }}>
-          <Confetti 
-            width={windowSize.width} 
-            height={windowSize.height} 
-            numberOfPieces={isPerfect ? 800 : 250} 
-            recycle={isPerfect} 
-            gravity={isPerfect ? 0.3 : 0.15}
-          />
+          <Confetti width={windowSize.width} height={windowSize.height} numberOfPieces={isPerfect ? 800 : 250} recycle={isPerfect} gravity={isPerfect ? 0.3 : 0.15} />
         </div>
       )}
 
-      {/* ★ 追従する（固定）エリア */}
       <div className="sticky-header">
         <div className="top-bar">
-          <button className="back-btn" onClick={onBack}>← タイトルへ戻る</button>
+          <button className="back-btn" onClick={handleBackToTitle}>← タイトルへ</button>
           {!isMulti && <div className="round-info mono">ROUND {round}｜{score}pt</div>}
-          {isBattle && <div className="round-info mono" style={{ color: '#e63946' }}>⚔️ BATTLE</div>}
+          {isBattle && <div className="round-info mono" style={{ color: '#e63946' }}>{isOnline ? '🌐 ONLINE BATTLE' : '⚔️ BATTLE'}</div>}
         </div>
 
-        {/* ターン表示 */}
         {isMulti && !showModal && !battleEnded && (
-          <div 
-            className={`turn-indicator ${isBattle ? 'battle-turn' : ''}`}
-            style={{ 
-              color: players[currentPlayerIdx]?.color, 
-              border: `2px solid ${players[currentPlayerIdx]?.color}66`,
-              background: isBattle ? `${players[currentPlayerIdx]?.color}08` : '#ffffff'
-            }}
-          >
-            {players[currentPlayerIdx]?.emoji} {players[currentPlayerIdx]?.name} のターン
-            {isBattle && <span className="battle-turn-sub">（必ず1枚選んでください）</span>}
+          <div className={`turn-indicator ${isBattle ? 'battle-turn' : ''}`} style={{ color: players[currentPlayerIdx]?.color, border: `2px solid ${players[currentPlayerIdx]?.color}66`, background: isBattle ? `${players[currentPlayerIdx]?.color}08` : '#ffffff', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
+            <span>{players[currentPlayerIdx]?.emoji} {getPlayerName(players[currentPlayerIdx])} のターン</span>
+            <span style={{ fontSize: '14px', fontWeight: '900', color: timeLeft <= 5 ? '#ff4444' : players[currentPlayerIdx]?.color, background: timeLeft <= 5 ? '#ffebee' : '#f0f0f0', padding: '2px 8px', borderRadius: '12px' }}>
+              ⏳ {timeLeft}秒
+            </span>
           </div>
         )}
 
-        {/* バトルモード用：デカい共通の爆弾ゲージ！ */}
         {isBattle && (
           <div className="score-panel" style={{ borderColor: '#e63946', marginBottom: '8px' }}>
             <div className="score-header">
@@ -417,7 +469,6 @@ const pickCardRef = useRef<((card: Card) => void) | null>(null);
           </div>
         )}
 
-        {/* Player panels */}
         {isMulti && (
           <div className="players-area">
             {players.map((p, i) => {
@@ -425,14 +476,13 @@ const pickCardRef = useRef<((card: Card) => void) | null>(null);
               const stoppedClass = p.stopped || p.busted || (battleEnded && battleLoser === i) ? 'stopped' : '';
               return (
                 <div key={i} className={`player-panel ${activeClass} ${stoppedClass}`} style={{ borderColor: activeClass ? p.color : '' }}>
-                  <div className="p-name" style={{ color: p.color }}>{p.emoji} {p.name}</div>
+                  <div className="p-name" style={{ color: p.color }}>{p.emoji} {getPlayerName(p)}</div>
                   
                   {isBattle ? (
                     <>
                       <div className="p-remain" style={{ color: '#888', marginTop: '2px', fontSize: '11px' }}>
                         合計: {fmt(p.total)}{t.unit}（{p.hand.length}枚）
                       </div>
-                      {/* バトル用：選んだカード一覧（コンパクト表示） */}
                       {p.hand.length > 0 && (
                         <div className="battle-hand">
                           {p.hand.map((c, ci) => (
@@ -443,7 +493,7 @@ const pickCardRef = useRef<((card: Card) => void) | null>(null);
                           ))}
                         </div>
                       )}
-                      {battleEnded && battleLoser !== i && <div className="p-status" style={{ color: p.color, fontSize: '12px' }}>🏆 SURVIVE!</div>}
+                      {battleEnded && battleLoser !== i && !isSelfDestructGlobal && <div className="p-status" style={{ color: p.color, fontSize: '12px' }}>🏆 SURVIVE!</div>}
                       {battleEnded && battleLoser === i && <div className="p-status" style={{ color: '#ff4444', fontSize: '12px' }}>💥 踏んだ…</div>}
                     </>
                   ) : (
@@ -463,61 +513,8 @@ const pickCardRef = useRef<((card: Card) => void) | null>(null);
             })}
           </div>
         )}
-        {!isMulti && (
-        <div className="score-panel">
-            <div className="score-header">
-              <div className="left"><span className="emoji">{t.emoji}</span><span className="name">{t.name}</span></div>
-              <div className="target mono" style={{ color: t.color }}>TARGET {activeTarget.toLocaleString()}{t.unit}</div>
-            </div>
-            <div className="gauge">
-              <div className="gauge-fill" style={{ width: `${isSoloBust ? 100 : soloRatio}%`, background: isSoloBust ? '#ff4444' : t.color }}></div>
-              <div className="gauge-text mono">{fmt(total)} / {activeTarget.toLocaleString()}</div>
-            </div>
-            <div className="total-display">
-              <span className="total-num mono" style={{ color: isSoloBust ? '#ff4444' : '#222' }}>{fmt(total)}</span>
-              <span className="total-unit">{t.unit}</span>
-              {!soloResult && total > 0 && (
-                <span className="total-remain" style={{ color: activeTarget - total < 0 ? '#ff4444' : '#e67e22' }}>
-                  (あと{Math.max(0, activeTarget - total).toLocaleString()})
-                </span>
-              )}
-            </div>
-          </div>
-        )}
       </div> 
-      {/* ★ 追従エリアここまで */}
 
-      {/* Solo hand */}
-      {!isMulti && hand.length > 0 && (
-        <div>
-          <div className="section-title">YOUR HAND ({hand.length})</div>
-          <div className="hand-cards">
-            {hand.map((c, i) => (
-              <div key={i} className="hand-card" style={{ border: `1.5px solid ${t.color}66` }}>
-                <div className="hname">{c.name}</div>
-                <div className="hval mono" style={{ color: t.color }}>{c.value.toLocaleString()}<span className="hunit">{t.unit}</span></div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Solo dealer */}
-      {!isMulti && dealerHand.length > 0 && (
-        <div>
-          <div className="section-title">DEALER ({dealerTotal.toLocaleString()}{t.unit})</div>
-          <div className="hand-cards">
-            {dealerHand.map((c, i) => (
-              <div key={i} className="hand-card" style={{ border: `1.5px solid ${t.color}66` }}>
-                <div className="hname">{c.name}</div>
-                <div className="hval mono" style={{ color: t.color }}>{c.value.toLocaleString()}<span className="hunit">{t.unit}</span></div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Field */}
       {showField && (
         <div>
           <div className="section-title">
@@ -530,9 +527,8 @@ const pickCardRef = useRef<((card: Card) => void) | null>(null);
               return (
                 <button
                   key={c.url || `${c.name}-${c.hint}`}
-                      className={`field-card ${isRevealed ? 'revealed' : ''}`}
-                  // ★ CPUのターン中は人間がクリックできないようにブロック！
-                  disabled={picking || battleEnded || (!isMulti && !!soloResult) || (isMulti && !isBattle && players[currentPlayerIdx]?.stopped) || (players[currentPlayerIdx]?.isCpu ?? false)}
+                  className={`field-card ${isRevealed ? 'revealed' : ''}`}
+                  disabled={picking || battleEnded || (!isMulti && !!soloResult) || (isMulti && !isBattle && players[currentPlayerIdx]?.stopped) || (!isOnline && players[currentPlayerIdx]?.isCpu) || (isOnline && !isMyTurn)}
                   onClick={() => pickCard(c)}
                   style={isRevealed ? { borderColor: revealColor, background: `${revealColor}15` } : {}}
                 >
@@ -540,11 +536,7 @@ const pickCardRef = useRef<((card: Card) => void) | null>(null);
                     <div className="fname" style={{ color: isRevealed ? revealColor : '' }}>{c.name}</div>
                     <div className="fhint">{c.hint}</div>
                   </div>
-                  {isRevealed ? (
-                    <div className="fval" style={{ color: revealColor }}>{c.value.toLocaleString()}<span className="fu">{t.unit}</span></div>
-                  ) : (
-                    <div className="fq">？</div>
-                  )}
+                  {isRevealed ? <div className="fval" style={{ color: revealColor }}>{c.value.toLocaleString()}<span className="fu">{t.unit}</span></div> : <div className="fq">？</div>}
                 </button>
               );
             })}
@@ -552,66 +544,66 @@ const pickCardRef = useRef<((card: Card) => void) | null>(null);
         </div>
       )}
 
-      {/* Stand button (normal modes only) */}
       {showStandBtn && !showModal && (
         <div className="stand-area">
-          <button 
-            className="stand-btn" 
-            onClick={doStand}
-            style={{ background: isMulti ? players[currentPlayerIdx]?.color : t.color }}
-          >
+          <button className="stand-btn" onClick={doStand} style={{ background: isMulti ? players[currentPlayerIdx]?.color : t.color }}>
             ✋ {isMulti ? 'ストップ！' : 'この合計でストップ！'}
           </button>
         </div>
       )}
 
-      {/* ========== RESULT MODAL ========== */}
       <div className={`modal-bg ${showModal ? 'active' : ''}`}>
-        <div className={`modal ${modalAnimationClass}`} style={{ 
-          borderColor: isBattle 
-            ? (battleLoser !== null ? '#e63946' : '#888') 
-            : isMulti 
-              ? (allMultiBust ? '#ff4444' : players[0]?.color) 
-              : (soloResult === 'bust' ? '#ff4444' : t.color) 
-        }}>
+        <div className={`modal ${modalAnimationClass}`} style={{ borderColor: isBattle ? (battleLoser !== null ? '#e63946' : '#888') : isMulti ? (allMultiBust ? '#ff4444' : players[0]?.color) : (soloResult === 'bust' ? '#ff4444' : t.color) }}>
           
-          {/* BATTLE RESULT */}
           {isBattle && (
             <>
               <div className="result-emoji">{battleLoser !== null ? '💥' : '🤝'}</div>
               <div className="result-title">
                 {battleLoser !== null 
-                  ? (
-                    <>
-                      <span style={{ fontSize: '16px', color: '#ff4444', display: 'block', marginBottom: '4px' }}>
-                        {players[battleLoser]?.name} がドカン！💥
-                      </span>
-                      <span style={{ color: players.length === 2 ? players[battleLoser === 0 ? 1 : 0]?.color : '#e67e22' }}>
-                        {players.length === 2
-                          ? `${players[battleLoser === 0 ? 1 : 0]?.name} の勝ち！`
-                          : '生存者の勝ち！'
-                        }
-                      </span>
-                    </>
-                  )
+                  ? (() => {
+                      // ★ 1枚目で自爆した場合は専用のテキスト表示！
+                      if (isSelfDestructGlobal) {
+                        return (
+                          <>
+                            <span style={{ fontSize: '16px', color: '#ff4444', display: 'block', marginBottom: '4px' }}>
+                              {getPlayerName(players[battleLoser])} が1枚目でドカン！💥
+                            </span>
+                            <span style={{ color: '#888' }}>勝者なし！（自爆）</span>
+                            <div style={{ fontSize: '12px', color: '#888', marginTop: '4px', fontWeight: 'normal' }}>
+                              （誰もカードを引いていないためノーコンテストです）
+                            </div>
+                          </>
+                        );
+                      }
+                      return (
+                        <>
+                          <span style={{ fontSize: '16px', color: '#ff4444', display: 'block', marginBottom: '4px' }}>
+                            {getPlayerName(players[battleLoser])} がドカン！💥
+                          </span>
+                          <span style={{ color: players.length === 2 ? players[battleLoser === 0 ? 1 : 0]?.color : '#e67e22' }}>
+                            {players.length === 2 ? `${getPlayerName(players[battleLoser === 0 ? 1 : 0])} の勝ち！` : '生存者の勝ち！'}
+                          </span>
+                        </>
+                      );
+                    })()
                   : '引き分け！'
                 }
               </div>
               <div className="result-detail">
-                最終合計: <span style={{color: '#ff4444', fontWeight: 900}}>{fmt(sharedTotal)}{t.unit}</span><br/>
-                💣 リミット: {activeTarget.toLocaleString()}{t.unit}
+                最終合計: <span style={{color: '#ff4444', fontWeight: 900}}>{fmt(sharedTotal)}{t.unit}</span><br/>💣 リミット: {activeTarget.toLocaleString()}{t.unit}
               </div>
               <div className="result-ranking">
                 {players.map((p, i) => {
                   const isLoserP = battleLoser === i;
-                  const isWinnerP = battleLoser !== null && !isLoserP;
+                  const isWinnerP = i === battleWinnerIdx;
+                  // 自爆時は全員😶か💥にする
+                  const rankPos = isSelfDestructGlobal ? (isLoserP ? '💥' : '😶') : (isWinnerP ? '🏆' : isLoserP ? '💥' : '👏');
+                  
                   return (
                     <div className="rank-row" key={i}>
-                      <div className="rank-pos">{isWinnerP ? '🏆' : '💥'}</div>
-                      <div className="rank-name" style={{ color: p.color }}>{p.emoji} {p.name}</div>
-                      <div className="rank-val mono" style={{ color: isLoserP ? '#ff4444' : '#333' }}>
-                        選択数: {fmt(p.total)}{t.unit}
-                      </div>
+                      <div className="rank-pos">{rankPos}</div>
+                      <div className="rank-name" style={{ color: p.color }}>{p.emoji} {getPlayerName(p)}</div>
+                      <div className="rank-val mono" style={{ color: isLoserP ? '#ff4444' : '#333' }}>選択数: {fmt(p.total)}{t.unit}</div>
                     </div>
                   );
                 })}
@@ -619,67 +611,22 @@ const pickCardRef = useRef<((card: Card) => void) | null>(null);
             </>
           )}
 
-          {/* SOLO RESULT */}
           {!isMulti && !isBattle && (
             <>
               <div className="result-emoji">{soloResult === 'perfect' ? '🎰' : soloResult === 'win' ? '🎉' : soloResult === 'bust' ? '💥' : '😢'}</div>
               <div className="result-title" style={{ color: soloResult === 'perfect' || soloResult === 'win' ? t.color : soloResult === 'bust' ? '#ff4444' : '#666' }}>
                 {soloResult === 'perfect' ? 'PERFECT!!' : soloResult === 'win' ? 'YOU WIN!' : soloResult === 'bust' ? 'BUST!' : 'YOU LOSE...'}
               </div>
-              <div className="result-detail">
-                あなた: {total.toLocaleString()}{t.unit}
-                {dealerTotal > 0 && ` ／ ディーラー: ${dealerTotal.toLocaleString()}${t.unit}`}<br/>
-                目標: {activeTarget.toLocaleString()}{t.unit}
-              </div>
-              {(soloResult === 'win' || soloResult === 'perfect') && (
-                <div className="result-diff" style={{ color: t.color }}>
-                  差: {Math.abs(total - activeTarget).toLocaleString()}{t.unit} {soloResult === 'perfect' && '🎯 ボーナス!'}
-                </div>
-              )}
+              <div className="result-detail">あなた: {total.toLocaleString()}{t.unit} {dealerTotal > 0 && ` ／ ディーラー: ${dealerTotal.toLocaleString()}${t.unit}`}<br/>目標: {activeTarget.toLocaleString()}{t.unit}</div>
+              {(soloResult === 'win' || soloResult === 'perfect') && <div className="result-diff" style={{ color: t.color }}>差: {Math.abs(total - activeTarget).toLocaleString()}{t.unit} {soloResult === 'perfect' && '🎯 ボーナス!'}</div>}
             </>
           )}
 
-          {/* MULTI RESULT (normal) */}
-          {isMulti && !isBattle && (
-            <>
-              <div className="result-emoji">{allMultiBust ? '💥' : isMultiDraw ? '🤝' : '🏆'}</div>
-              <div className="result-title" style={{ color: allMultiBust ? '#ff4444' : isMultiDraw ? '#e67e22' : players[0]?.color }}>
-                {allMultiBust ? '全員バースト！' : isMultiDraw ? '引き分け！' : `${players[0]?.emoji} ${players[0]?.name} の勝ち！`}
-              </div>
-              <div className="result-detail">目標: {activeTarget.toLocaleString()}{t.unit}</div>
-              <div className="result-ranking">
-                {players.map((p, i) => (
-                  <div className="rank-row" key={i}>
-                    <div className="rank-pos">{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}</div>
-                    <div className="rank-name" style={{ color: p.color }}>{p.emoji} {p.name}</div>
-                    <div className="rank-val mono" style={{ color: p.busted ? '#ff4444' : '#333' }}>
-                      {fmt(p.total)}{t.unit} {p.busted ? '💥' : <span style={{fontSize:'11px', color:'#888'}}>(差:{p.diff?.toLocaleString()})</span>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-
-          {/* ★ リンク枠（URLがあれば直接リンク、なければAmazon） ★ */}
           <div className="amazon-section">
-            <div className="amazon-title">
-              {(isMulti ? players[0]?.hand ?? [] : hand).some(c => c.url) 
-                ? "🎧 今回引いた動画を観る" 
-                : "🛒 今回引いたカードをAmazonで探す"}
-            </div>
+            <div className="amazon-title">{(isMulti ? players[0]?.hand ?? [] : hand).some(c => c.url) ? "🎧 今回引いた動画を観る" : "🛒 今回引いたカードをAmazonで探す"}</div>
             <div className="amazon-cards">
               {(isMulti ? players[0]?.hand ?? [] : hand).slice(0, 3).map((c, i) => (
-                <a 
-                  key={i} 
-                  /* urlがあればそのリンクへ、なければAmazonへ */
-                  href={c.url ? c.url : `https://www.amazon.co.jp/s?k=${encodeURIComponent(c.name)}&tag=ash44-22`} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="amazon-link"
-                  /* YouTubeリンクの場合は少し赤っぽくする */
-                  style={c.url ? { color: '#cc0000', borderColor: '#ffcccc' } : {}}
-                >
+                <a key={i} href={c.url ? c.url : `https://www.amazon.co.jp/s?k=${encodeURIComponent(c.name)}&tag=ash44-22`} target="_blank" rel="noopener noreferrer" className="amazon-link" style={c.url ? { color: '#cc0000', borderColor: '#ffcccc' } : {}}>
                   {c.url ? `▶️ ${c.name} ${c.hint}` : `🔍 ${c.name}`}
                 </a>
               ))}
@@ -687,20 +634,13 @@ const pickCardRef = useRef<((card: Card) => void) | null>(null);
           </div>
 
           <div className="modal-btns">
-            <button className="retry-btn" style={
-              isBattle 
-                ? { background: '#e63946' }
-                : !isPerfect 
-                  ? { background: t.color } 
-                  : { background: '#222', border: '1px solid #fff' }
-            } onClick={() => setRound(r => r + 1)}>
+            <button className="retry-btn" style={isBattle ? { background: '#e63946' } : !isPerfect ? { background: t.color } : { background: '#222', border: '1px solid #fff' }} onClick={handleRetry}>
               {isBattle ? '⚔️ もう1戦' : 'もう1回'}
             </button>
-            <button className="change-btn" onClick={onBack}>テーマ変更</button>
+            <button className="change-btn" onClick={handleBackToTitle}>終了して戻る</button>
           </div>
         </div>
       </div>
-
     </div>
   );
 }

@@ -1,5 +1,5 @@
 // data/types.ts
-export type GameMode = "normal" | "battle";
+export type GameMode = "normal" | "battle" | "online"; // ★ onlineを追加！
 
 export type ThemeKey = "manga" | "movies" | "countries" | "anime" | "history" | "primes"| "tokumei" | "omocoro" | "chains";
 
