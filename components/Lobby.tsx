@@ -50,6 +50,10 @@ export default function Lobby({ roomId }: LobbyProps) {
 
   const shareUrl = typeof window !== 'undefined' ? window.location.href : "";
   const shareText = roomData ? `「ネタ・ブラックジャック」の通信対戦に招待されています！\nテーマ: ${THEMES[roomData.theme_key as ThemeKey]?.name}\n` : "";
+  
+  const hasQuery = shareUrl.includes('?');
+  // ★ ここを大文字対応の openExternalBrowser=1 に修正！
+  const lineShareUrl = shareUrl ? `${shareUrl}${hasQuery ? '&' : '?'}openExternalBrowser=1` : "";
 
   const trackShare = (method: string) => {
     if (typeof window !== 'undefined' && (window as any).gtag) {
@@ -83,13 +87,12 @@ export default function Lobby({ roomId }: LobbyProps) {
           テーマ: <span style={{ fontSize: '18px' }}>{theme?.emoji}</span> {theme?.name}
         </div>
 
-        {/* ★ 共有ボタンエリア：縦2行のスマートなUIに変更！ ★ */}
         <div style={{ borderTop: '1px dashed #ccc', paddingTop: '16px', display: 'flex', gap: '8px', justifyContent: 'center' }}>
           <button onClick={handleCopy} style={{ flex: 1, padding: '12px 4px', background: '#333', color: '#fff', borderRadius: '12px', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
             <span style={{ fontSize: '20px', lineHeight: '1' }}>📋</span>
             <span style={{ fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>URLコピー</span>
           </button>
-          <a href={`https://line.me/R/msg/text/?${encodeURIComponent(shareText + shareUrl)}`} target="_blank" rel="noopener noreferrer" onClick={() => trackShare('LINE')} style={{ flex: 1, padding: '12px 4px', background: '#06C755', color: '#fff', borderRadius: '12px', textDecoration: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+          <a href={`https://line.me/R/msg/text/?${encodeURIComponent(shareText + lineShareUrl)}`} target="_blank" rel="noopener noreferrer" onClick={() => trackShare('LINE')} style={{ flex: 1, padding: '12px 4px', background: '#06C755', color: '#fff', borderRadius: '12px', textDecoration: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
             <span style={{ fontSize: '20px', lineHeight: '1' }}>💬</span>
             <span style={{ fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>LINE</span>
           </a>

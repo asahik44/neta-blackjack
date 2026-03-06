@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, Suspense, useEffect } from "react";
 import { THEMES, ThemeKey, GameMode } from "@/data/themes";
 import Game from "@/components/Game";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -18,6 +18,29 @@ function HomeContent() {
   const router = useRouter(); 
   const searchParams = useSearchParams();
   const roomId = searchParams.get("room");
+
+  const [shareUrlBase, setShareUrlBase] = useState("");
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setShareUrlBase(window.location.origin);
+    }
+  }, []);
+
+  const shareText = "「ネタ・ブラックジャック」\n知識×予想×駆け引きの新感覚トランプゲーム！\n";
+  // ★ ここを大文字対応の openExternalBrowser=1 に修正！
+  const lineShareUrl = shareUrlBase ? `${shareUrlBase}?openExternalBrowser=1` : "";
+
+  const trackShare = (method: string) => {
+    if (typeof window !== 'undefined' && (window as any).gtag) {
+      (window as any).gtag('event', 'share', { method: method, content_type: 'app_share' });
+    }
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(shareText + shareUrlBase);
+    alert("URLをコピーしました！DiscordやMessengerなどに貼り付けてください！");
+    trackShare("Copy");
+  };
 
   if (roomId) {
     return <Lobby roomId={roomId} />;
@@ -106,12 +129,10 @@ function HomeContent() {
         ) : (
           <div style={{ textAlign: 'center', fontSize: '13px', color: '#555', marginBottom: '24px', padding: '16px', background: '#e3f2fd', borderRadius: '12px', border: '1px solid #bbdefb' }}>
             🌐 通信対戦は自動的に<strong>「バトルモード」</strong>になります。<br/>
-            テーマを選んで部屋を作り、友達にURLを共有しましょう！<br/>
-            最大5人までプレイできます。
+            テーマを選んで部屋を作り、友達にURLを共有しましょう！
           </div>
         )}
 
-        {/* ★ カスタムルール：白枠固定（nowrap）とパディングを調整してタップしやすく均等化！ */}
         <div className="section-label">CUSTOM RULES</div>
         <div style={{ background: '#f8f9fa', padding: '16px', borderRadius: '12px', marginBottom: '24px' }}>
           <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#555', marginBottom: '8px' }}>🎯 目標値の倍率</div>
@@ -155,6 +176,29 @@ function HomeContent() {
             );
           })}
         </div>
+
+        {/* トップページ用共有ボタンエリア */}
+        {shareUrlBase && (
+          <div style={{ marginTop: '32px', padding: '16px', background: '#f8f9fa', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+            <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#555', textAlign: 'center', marginBottom: '12px' }}>
+              🎉 このゲームを友達にシェアする！
+            </div>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+              <button onClick={handleCopy} style={{ flex: 1, padding: '12px 4px', background: '#333', color: '#fff', borderRadius: '12px', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                <span style={{ fontSize: '20px', lineHeight: '1' }}>📋</span>
+                <span style={{ fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>URLコピー</span>
+              </button>
+              <a href={`https://line.me/R/msg/text/?${encodeURIComponent(shareText + lineShareUrl)}`} target="_blank" rel="noopener noreferrer" onClick={() => trackShare('LINE')} style={{ flex: 1, padding: '12px 4px', background: '#06C755', color: '#fff', borderRadius: '12px', textDecoration: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '20px', lineHeight: '1' }}>💬</span>
+                <span style={{ fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>LINE</span>
+              </a>
+              <a href={`https://x.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrlBase)}`} target="_blank" rel="noopener noreferrer" onClick={() => trackShare('X_Twitter')} style={{ flex: 1, padding: '12px 4px', background: '#000', color: '#fff', borderRadius: '12px', textDecoration: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '20px', lineHeight: '1' }}>𝕏</span>
+                <span style={{ fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Post</span>
+              </a>
+            </div>
+          </div>
+        )}
         
         <div style={{ textAlign: 'center', marginTop: '32px', marginBottom: '16px' }}>
           <a href="https://ofuse.me/asahik44" target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', background: '#0077ff', color: '#fff', padding: '12px 32px', borderRadius: '30px', fontWeight: 'bold', textDecoration: 'none', boxShadow: '0 4px 12px rgba(0, 119, 255, 0.3)' }}>
